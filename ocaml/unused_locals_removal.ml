@@ -1,0 +1,91 @@
+open Expr
+open Imperative
+
+let rec used_variables_in_expr (e : expr) : string list =
+  match e with
+  | Expr_const _ -> []
+  | Expr_ref(name, _) -> [name]
+  | Expr_unop(_, e') -> used_variables_in_expr e'
+  | Expr_binop(_, e', e'')
+  | Expr_index_eq_ne(_, _, e', e'') ->
+     used_variables_in_expr e' @ used_variables_in_expr e''
+
+
+(** The following three recursive functions form an attribute grammar for removing unused locals:
+    They take:
+      1) the set of variables used in subsequent steps
+    They return (if any):
+      1) the modified step list/step/sequence
+      2) the set of variables used in that modified step list/step/statement AND subsequently *)
+let rec remove_unused_locals_in_steps (steps : step list) (used_locals : string list) : step list * string list =
+  match steps with
+  | [] -> ([], used_locals)
+  | first :: rest ->
+     let rest', used_locals' = remove_unused_locals_in_steps rest used_locals in
+     begin
+       match remove_unused_locals_in_step first used_locals' with
+       | None -> rest', used_locals'
+       | Some (first', used_locals'') -> (first' :: rest'), used_locals''
+     end
+and remove_unused_locals_in_step (step : step) (used_locals : string list) : (step * string list) option =
+  match step with
+  | Step_let(name, repr, unit_, expr) ->
+     if List.mem name used_locals then
+       Some (step, used_variables_in_expr expr @ used_locals)
+     else
+       None
+  | Step_do(statement) ->
+     begin
+       match remove_unused_locals_in_statement statement used_locals with
+       | None -> None
+       | Some (statement', used_locals') -> Some (Step_do statement', used_locals')
+     end
+and remove_unused_locals_in_statement (statement : statement) (used_locals : string list) : (statement * string list) option =
+  match statement with
+  | Statement_assign(lhs, expr)
+  | Statement_increment(lhs, expr) ->
+     begin
+       match lhs with
+       | Lhs_local(name,repr) ->
+          if List.mem name used_locals then
+            Some (statement, used_variables_in_expr expr @ used_locals)
+          else
+            None
+       | _ -> Some (statement, used_variables_in_expr expr @ used_locals)
+     end
+  | Statement_scale(lhs, expr) ->
+     begin
+       match lhs with
+       | Lhs_local(name, repr) ->
+          if List.mem name used_locals then
+            Some (statement, used_variables_in_expr expr @ used_locals)
+          else
+            None
+       | _ -> Some (statement, used_variables_in_expr expr @ used_locals)
+     end
+  | Statement_for(index, range_name, body) ->
+     begin
+       match remove_unused_locals_in_statement body used_locals with
+       | None -> None
+       | Some (body', used_locals') -> Some (Statement_for(index, range_name, body'), used_locals')
+     end
+  | Statement_block body ->
+     begin
+       match remove_unused_locals_in_steps body used_locals with
+       | [],_ -> None
+       | body', used_locals' -> Some (Statement_block body', used_locals')
+     end
+
+let remove_unused_locals_in_procedure (p : procedure) : procedure =
+  let simplified_body, used_locals = remove_unused_locals_in_steps p.procedure_body [] in
+  { procedure_index_args = p.procedure_index_args;
+    procedure_value_args = p.procedure_value_args;
+    procedure_body = simplified_body;
+  }
+
+let remove_unused_locals_in_module (m : module_) : module_ =
+  { module_ranges = m.module_ranges;
+    module_variables = m.module_variables;
+    module_procedures = m.module_procedures |> List.map (fun (name, proc) ->
+                                                         (name, remove_unused_locals_in_procedure proc));
+  }
