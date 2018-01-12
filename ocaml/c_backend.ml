@@ -218,8 +218,8 @@ let print_procedures (p : pretty_printer) (m : module_) : unit =
       (fun (procedure_name, proc) ->
         print_c_function_declaration p procedure_name "static void" proc.procedure_index_args proc.procedure_value_args;
         pretty_printer_open_block p " {";
-        proc.procedure_index_args |> List.iter (fun index_arg -> pretty_printer_println p (Printf.sprintf "__USE(%s);" index_arg));
-        proc.procedure_value_args |> List.iter (fun (value_arg, _, _) -> pretty_printer_println p (Printf.sprintf "__USE(%s);" value_arg));
+        proc.procedure_index_args |> List.iter (fun index_arg -> pretty_printer_println p (Printf.sprintf "(void) %s;" index_arg));
+        proc.procedure_value_args |> List.iter (fun (value_arg, _, _) -> pretty_printer_println p (Printf.sprintf "(void) %s;" value_arg));
         proc.procedure_body |> List.iter (print_step p m);
         pretty_printer_close_block p "}";
       )
