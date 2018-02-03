@@ -5,6 +5,7 @@ let alphanum = alpha | digit
 rule token = parse
   | [' ' '\t'] { token lexbuf }
   | '/' '/' [^'\n']*           { token lexbuf }
+  | '#' [^'\n']*            { token lexbuf }
   | '\n'       { Lexing.new_line lexbuf; token lexbuf }
   | '1'                     { Parser.ONE }
   | digit+ '.' digit+ as num    { Parser.FLOAT_LIT (float_of_string num) }
