@@ -11,7 +11,6 @@ type representation =
   | Representation_float32
   | Representation_float64
 
-
 (* Variables and their definitions *)
 
 type subscript = Subscript of string
@@ -24,6 +23,7 @@ type linkage =
   | Linkage_extern
   | Linkage_public
   | Linkage_private
+  | Linkage_phantom
 
 type definition =
   | Definition_given

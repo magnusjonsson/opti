@@ -21,13 +21,22 @@ let direct_dependent_updates (s: specification) (g: fresh_name_generator) ~(dire
   in
   direct_dependents |> List.map (compute_update s g deltas)
 
-let perform_update (u: update) : Imperative.step list
-    =
+let compute_delta (u: update) : Imperative.step list =
   let d : delta = u.update_delta in
-  [Imperative.Step_let(d.delta_amount, d.delta_representation, d.delta_unit, u.update_delta_expr);
-   Imperative.Step_do(Imperative.Statement_increment(Imperative.Lhs_global(d.delta_variable_name, d.delta_variable_subscripts),
-                                                     Expr_ref(d.delta_amount, [])))]
-    
+  [Imperative.Step_let(d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit, u.update_delta_expr)]
+
+let apply_delta (d: delta): Imperative.step list =
+  match d.delta_variable.variable_linkage with
+  | Linkage_phantom -> []
+  | Linkage_public | Linkage_private | Linkage_extern ->
+     [Imperative.Step_do(
+          Imperative.Statement_increment(
+              Imperative.Lhs_global(d.delta_variable_name, d.delta_variable_subscripts),
+              Expr_ref(d.delta_amount, [])))]
+
+let perform_update (u: update) : Imperative.step list =
+  compute_delta u @ apply_delta u.update_delta
+
 let bring_into_loop (loop_subscripts : (string * string) list) (u: update) : update =
   let rename_subscript = Utils.subst_assoc (List.combine (List.map fst u.update_loop_subscripts)
                                                          (List.map fst loop_subscripts))
@@ -39,10 +48,9 @@ let bring_into_loop (loop_subscripts : (string * string) list) (u: update) : upd
       let d = u.update_delta in
       {
         delta_variable_name = d.delta_variable_name;
+        delta_variable = d.delta_variable;
         delta_variable_subscripts = List.map rename_subscript d.delta_variable_subscripts;
         delta_amount = d.delta_amount;
-        delta_representation = d.delta_representation;
-        delta_unit = d.delta_unit;
       }
   }
 
@@ -136,17 +144,16 @@ let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: 
       (fun variable_name ->
         let v = specification_find_variable s variable_name in
         { delta_variable_name = variable_name;
+          delta_variable = v;
           delta_variable_subscripts = List.map fst v.variable_subscripts;
           delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
-          delta_representation = v.variable_representation;
-          delta_unit = v.variable_unit;
         })
   in
   {
     Imperative.procedure_index_args =
       deltas |> List.map (fun d -> d.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
-      deltas |> List.map (fun d -> (d.delta_amount, d.delta_representation, d.delta_unit));
+      deltas |> List.map (fun d -> (d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit));
     Imperative.procedure_body =
       let direct_dependents_table = compute_direct_dependents_table s in
       let rank_table = compute_rank_table direct_dependents_table in
@@ -162,10 +169,9 @@ let generate_procedure_to_increment_variables (s: specification) ~(variable_name
       (fun variable_name ->
         let v = specification_find_variable s variable_name in
         { delta_variable_name = variable_name;
+          delta_variable = v;
           delta_variable_subscripts = List.map fst v.variable_subscripts;
           delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
-          delta_representation = v.variable_representation;
-          delta_unit = v.variable_unit;
         }
       )
   in
@@ -173,15 +179,11 @@ let generate_procedure_to_increment_variables (s: specification) ~(variable_name
     Imperative.procedure_index_args =
       deltas |> List.map (fun d -> d.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
-      deltas |> List.map (fun d -> (d.delta_amount, d.delta_representation, d.delta_unit));
+      deltas |> List.map (fun d -> (d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit));
     Imperative.procedure_body =
       let direct_dependents_table = compute_direct_dependents_table s in
       let rank_table = compute_rank_table direct_dependents_table in
-      let apply_deltas =
-        deltas |> List.map
-            (fun d -> Imperative.Step_do(Imperative.Statement_increment(Imperative.Lhs_global(d.delta_variable_name, d.delta_variable_subscripts),
-                                                                        Expr_ref(d.delta_amount, []))))
-      in
+      let apply_deltas = List.concat (List.map apply_delta deltas) in
       apply_deltas @ emit_code_to_propagate_deltas s g ~direct_dependents_table ~rank_table ~deltas;
   }
 
@@ -200,11 +202,10 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
         {
           assignment_value = fresh_name_generator_generate_name g (variable_name ^ "_new_value");
           assignment_delta = {
-            delta_variable_name = variable_name;
-            delta_variable_subscripts = v.variable_subscripts |> List.map fst;
-            delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
-            delta_representation = v.variable_representation;
-            delta_unit = v.variable_unit;
+              delta_variable_name = variable_name;
+              delta_variable = v;
+              delta_variable_subscripts = v.variable_subscripts |> List.map fst;
+              delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
           }
         })
   in
@@ -214,13 +215,13 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
     Imperative.procedure_index_args =
       assignments |> List.map (fun a -> a.assignment_delta.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
-      assignments |> List.map (fun a -> (a.assignment_value, a.assignment_delta.delta_representation, a.assignment_delta.delta_unit));
+      assignments |> List.map (fun a -> (a.assignment_value, a.assignment_delta.delta_variable.variable_representation, a.assignment_delta.delta_variable.variable_unit));
     Imperative.procedure_body =
       let assign_and_compute_deltas =
         List.concat (assignments |> List.map
             (fun a ->
               let d = a.assignment_delta in
-              [Imperative.Step_let(d.delta_amount, d.delta_representation, d.delta_unit,
+              [Imperative.Step_let(d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit,
                                    Expr_binop(Binop_sub,
                                               Expr_ref(a.assignment_value, []),
                                               Expr_ref(d.delta_variable_name, d.delta_variable_subscripts)));
@@ -260,15 +261,24 @@ let generate_procedure_to_scale_unit (s: specification) (u: string) : Imperative
   }
 ;;
 
+let convert_linkage = function
+  | Linkage_public -> Some Imperative.Linkage_public
+  | Linkage_private -> Some Imperative.Linkage_private
+  | Linkage_extern -> Some Imperative.Linkage_extern
+  | Linkage_phantom -> None
+
 let generate_imperative_variables (s: specification) : (string * Imperative.variable) list =
   s.specification_variables |> List.map
       (fun (variable_name, v) ->
-        variable_name, {
-          Imperative.variable_linkage = v.variable_linkage;
-          Imperative.variable_dimensions = v.variable_subscripts |> List.map (fun (name_,range_name) -> range_name);
-          Imperative.variable_representation = v.variable_representation;
-          Imperative.variable_unit = v.variable_unit;
-        })
+        match convert_linkage v.variable_linkage with
+        | None -> [] (* phantom variable *)
+        | Some linkage ->
+           [variable_name, {
+               Imperative.variable_linkage = linkage;
+               Imperative.variable_dimensions = v.variable_subscripts |> List.map (fun (name_,range_name) -> range_name);
+               Imperative.variable_representation = v.variable_representation;
+               Imperative.variable_unit = v.variable_unit;}])
+  |> List.concat
 
 
 exception Recompute_given of string * string

@@ -4,10 +4,9 @@ open Syntax_tree
 
 type delta = {
     delta_variable_name: string;
+    delta_variable: variable;
     delta_variable_subscripts: string list;
     delta_amount: string;
-    delta_representation: representation;
-    delta_unit : unit_;
   }
 
 exception Delta_not_found of string

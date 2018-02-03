@@ -1,6 +1,9 @@
 type range = Syntax_tree.range
 type expr = Expr.expr
-type linkage = Syntax_tree.linkage
+type linkage =
+  | Linkage_public
+  | Linkage_private
+  | Linkage_extern
 type representation = Syntax_tree.representation
 type unit_ = Unit.unit_
 

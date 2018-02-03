@@ -98,10 +98,9 @@ let compute_update (s: specification) (g: fresh_name_generator) (deltas: delta l
       in
 
       let propagatee_delta = { delta_variable_name = propagatee_variable_name;
+                               delta_variable = propagatee;
                                delta_variable_subscripts = propagatee_modified_index;
                                delta_amount = propagatee_delta_value_name;
-                               delta_representation = propagatee.variable_representation;
-                               delta_unit = propagatee.variable_unit;
                              }
       in
 

@@ -14,6 +14,7 @@ rule token = parse
                                                    "extern", Parser.EXTERN;
                                                    "public", Parser.PUBLIC;
                                                    "private", Parser.PRIVATE;
+						   "phantom", Parser.PHANTOM;
                                                    "sum", Parser.SUM;
                                                    "proc", Parser.PROC;
                                                    "recomputes", Parser.RECOMPUTES;

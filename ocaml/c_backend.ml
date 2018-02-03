@@ -1,5 +1,4 @@
 open Expr
-open Syntax_tree
 open Imperative
 open Pretty_printer
 

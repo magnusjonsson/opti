@@ -21,6 +21,7 @@ open Syntax_tree
 %token EXTERN
 %token PUBLIC
 %token PRIVATE
+%token PHANTOM
 %token PROC
 %token SUM
 %token EQUALS
@@ -128,6 +129,7 @@ linkage:
   EXTERN { Linkage_extern }
 | PUBLIC { Linkage_public }
 | PRIVATE { Linkage_private }
+| PHANTOM { Linkage_phantom }
 ;
 
 representation:
