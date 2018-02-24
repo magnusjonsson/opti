@@ -226,3 +226,44 @@ let print_procedures (p : pretty_printer) (m : module_) : unit =
 let print_module (p : pretty_printer) (m : module_) : unit =
   print_global_variables p m;
   print_procedures p m
+
+let print_global_variable (p : pretty_printer) (m : module_) (variable_name : string) (v : variable) (linkage : string): unit =
+  pretty_printer_print p linkage;
+  let dimensions =
+    v.variable_dimensions |> List.map (fun range_name -> (module_find_range m range_name).range_c_name)
+  in
+  if dimensions <> [] then pretty_printer_print p "ALIGN ";
+  pretty_printer_print p (c_unit v.variable_unit);
+  pretty_printer_print p " ";
+  pretty_printer_print p (c_representation v.variable_representation);
+  pretty_printer_print p " ";
+  print_c_reference p variable_name dimensions;
+  pretty_printer_println p ";"
+
+let print_global_variables (p : pretty_printer) (m : module_) : unit =
+  m.module_variables
+  |> List.iter
+       (fun (variable_name, v) ->
+         let linkage = match v.variable_linkage with
+           | Linkage_extern -> "extern "
+           | Linkage_public -> ""
+           | Linkage_private -> "static "
+         in
+         print_global_variable p m variable_name v linkage)
+
+let linkage_is_externally_visible = function
+  | Linkage_extern -> true
+  | Linkage_public -> true
+  | Linkage_private -> false
+
+exception Internal_error
+
+let print_header_global_variables (p : pretty_printer) (m : module_) : unit =
+  m.module_variables
+  |> List.filter (fun (_, v) -> linkage_is_externally_visible v.variable_linkage)
+  |> List.iter
+       (fun (variable_name, v) ->
+         print_global_variable p m variable_name v "extern ")
+
+let print_module_header (p : pretty_printer) (m : module_) : unit =
+  print_header_global_variables p m
