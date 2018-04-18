@@ -49,7 +49,19 @@ let smart_min e1 e2
 
 let smart_max e1 e2
     =
-  if e1 = e2 then e1 else Expr_binop(Binop_max, e1, e2)
+    if e1 = e2 then e1 else Expr_binop(Binop_max, e1, e2)
+
+let smart_le e1 e2 =
+  if e1 = e2 then Expr_const 1.0 else Expr_binop(Binop_le, e1, e2)
+
+let smart_ge e1 e2 =
+  if e1 = e2 then Expr_const 1.0 else Expr_binop(Binop_ge, e1, e2)
+
+let smart_lt e1 e2 =
+  if e1 = e2 then Expr_const 0.0 else Expr_binop(Binop_lt, e1, e2)
+
+let smart_gt e1 e2 =
+  if e1 = e2 then Expr_const 0.0 else Expr_binop(Binop_gt, e1, e2)
 
 let smart_abs e1
     =
@@ -73,6 +85,17 @@ let smart_binop (b: binop) (e1: expr) (e2: expr): expr =
   | Binop_div -> smart_div e1 e2
   | Binop_min -> smart_min e1 e2
   | Binop_max -> smart_max e1 e2
+  | Binop_le -> smart_le e1 e2
+  | Binop_ge -> smart_ge e1 e2
+  | Binop_lt -> smart_lt e1 e2
+  | Binop_gt -> smart_gt e1 e2
+
+let smart_if (e1: expr) (e2: expr) (e3: expr): expr =
+  if e2 = e3 then e2 else
+    match e1 with
+    | Expr_const 0.0 -> e3
+    | Expr_const _ -> e2
+    | _ -> Expr_if(e1, e2, e3)
 
 let rec simplify_expr (e: expr)
     =
@@ -81,6 +104,7 @@ let rec simplify_expr (e: expr)
   | Expr_ref(_,_) -> e
   | Expr_unop(u, e1) -> smart_unop u (simplify_expr e1)
   | Expr_binop(b, e1, e2) -> smart_binop b (simplify_expr e1) (simplify_expr e2)
+  | Expr_if(e1, e2, e3) -> smart_if (simplify_expr e1) (simplify_expr e2) (simplify_expr e3)
   | Expr_index_eq_ne(i1,i2,e1,e2) ->
       let e1' = map_subscripts_in_expr (Utils.subst i2 i1) e1 in
       smart_index_eq_ne i1 i2 (simplify_expr e1') (simplify_expr e2)

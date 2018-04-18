@@ -31,6 +31,10 @@ rule token = parse
                                                    "float64", Parser.FLOAT64]
                               with Not_found -> Parser.ID name
                             }
+  | '>' '=' { Parser.GE }
+  | '<' '=' { Parser.LE }
+  | '>' { Parser.GT }
+  | '<' { Parser.LT }
   | '(' { Parser.LP }
   | ')' { Parser.RP }
   | '[' { Parser.LB }

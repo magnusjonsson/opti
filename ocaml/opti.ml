@@ -100,6 +100,7 @@ let rec compute_direct_dependents_table (s: specification): (string, string) Has
             | Expr_ref(used_variable_name,subscripts) -> Hashtbl.add direct_dependents used_variable_name defined_variable_name
             | Expr_unop(_, e1) -> visit_expr e1
             | Expr_binop(_, e1, e2) -> visit_expr e1; visit_expr e2
+            | Expr_if(e1, e2, e3) -> visit_expr e1; visit_expr e2; visit_expr e3
             | Expr_index_eq_ne(i1,i2,e1,e2) -> visit_expr e1; visit_expr e2
           in
           visit_expr d.definition_expr_summee

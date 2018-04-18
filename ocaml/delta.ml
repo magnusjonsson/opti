@@ -44,42 +44,41 @@ let rec compute_expr_delta ~(deltas: delta list) (e : expr) =
         Expr_binop(Binop_sub,
                    Expr_unop(Unop_abs, e1),
                    Expr_unop(Unop_abs, Expr_binop(Binop_sub, e1, e1')))
-    | Expr_binop(Binop_add, e1, e2) -> Expr_binop(Binop_add, process e1, process e2)
-    | Expr_binop(Binop_sub, e1, e2) -> Expr_binop(Binop_sub, process e1, process e2)
-    | Expr_binop(Binop_mul, e1, e2) ->
+    | Expr_binop(b, e1, e2) -> begin
         let e1' = process e1 in
         let e2' = process e2 in
-        Expr_binop(Binop_sub,
-                   Expr_binop(Binop_add,
-                              Expr_binop(Binop_mul, e1, e2'),
-                              Expr_binop(Binop_mul, e1', e2)),
-                   Expr_binop(Binop_mul, e1', e2'))
-    | Expr_binop(Binop_div, e1, e2) ->
-        let e1' = process e1 in
-        let e2' = process e2 in
-        let e2_recip' = Expr_binop(Binop_div,
-                                   Expr_unop(Unop_neg, e2'),
-                                   Expr_binop(Binop_mul, e2, Expr_binop(Binop_sub, e2, e2'))) in
-        Expr_binop(Binop_sub,
-                   Expr_binop(Binop_add,
-                              Expr_binop(Binop_mul, e1, e2_recip'),
-                              Expr_binop(Binop_div, e1', e2)),
-                   Expr_binop(Binop_mul, e1', e2_recip'))
-    | Expr_binop(Binop_min, e1, e2) ->
-        let e1' = process e1 in
-        let e2' = process e2 in
-        Expr_binop(Binop_sub,
-                   Expr_binop(Binop_min, e1, e2),
-                   Expr_binop(Binop_min,
-                              Expr_binop(Binop_sub, e1, e1'),
-                              Expr_binop(Binop_sub, e2, e2')))
-    | Expr_binop(Binop_max, e1, e2) ->
-        let e1' = process e1 in
-        let e2' = process e2 in
-        Expr_binop(Binop_sub,
-                   Expr_binop(Binop_max, e1, e2),
-                   Expr_binop(Binop_max,
-                              Expr_binop(Binop_sub, e1, e1'),
-                              Expr_binop(Binop_sub, e2, e2')))
+        match b with
+        | Binop_add | Binop_sub -> Expr_binop(b, e1', e2')
+        | Binop_mul ->
+           Expr_binop(Binop_sub,
+                      Expr_binop(Binop_add,
+                                 Expr_binop(Binop_mul, e1, e2'),
+                                 Expr_binop(Binop_mul, e1', e2)),
+                      Expr_binop(Binop_mul, e1', e2'))
+        | Binop_div ->
+           let e2_recip' = Expr_binop(Binop_div,
+                                      Expr_unop(Unop_neg, e2'),
+                                      Expr_binop(Binop_mul, e2, Expr_binop(Binop_sub, e2, e2'))) in
+           Expr_binop(Binop_sub,
+                      Expr_binop(Binop_add,
+                                 Expr_binop(Binop_mul, e1, e2_recip'),
+                                 Expr_binop(Binop_div, e1', e2)),
+                      Expr_binop(Binop_div, e1', e2_recip'))
+
+        | Binop_min | Binop_max
+          | Binop_le | Binop_ge | Binop_lt | Binop_gt ->
+           let old_e1 = Expr_binop(Binop_sub, e1, e1') in
+           let old_e2 = Expr_binop(Binop_sub, e2, e2') in
+           Expr_binop(Binop_sub,
+                      Expr_binop(b, e1, e2),
+                      Expr_binop(b, old_e1, old_e2))
+      end
+    | Expr_if(e1, e2, e3) ->
+       let old_e1 = Expr_binop(Binop_sub, e1, process e1) in
+       let old_e2 = Expr_binop(Binop_sub, e2, process e2) in
+       let old_e3 = Expr_binop(Binop_sub, e3, process e3) in
+       Expr_binop(Binop_sub,
+                  Expr_if(e1, e2, e3),
+                  Expr_if(old_e1, old_e2, old_e3))
   in
   process e

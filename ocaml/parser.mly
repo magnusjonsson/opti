@@ -15,6 +15,10 @@ open Syntax_tree
 %token MINUS
 %token QUESTION_MARK
 %token COLON
+%token LE
+%token GE
+%token LT
+%token GT
 %token SEMICOLON
 %token RANGE
 %token CNAME
@@ -41,6 +45,9 @@ open Syntax_tree
 %token FLOAT64
 %token EOF
 
+%nonassoc QUESTION_MARK
+%nonassoc COLON
+%left LE GE LT GT
 %left PLUS MINUS
 %left STAR SLASH
 
@@ -64,14 +71,19 @@ expr:
 | FLOAT_LIT          { Expr_const  $1                  }
 | reference          { let (v,s) = $1 in Expr_ref(v,s) }
 | LP expr RP         { $2 }
-| expr PLUS expr     { Expr_binop(Binop_add, $1, $3)   }
-| expr MINUS expr    { Expr_binop(Binop_sub, $1, $3)   }
-| expr STAR expr     { Expr_binop(Binop_mul, $1, $3)   }
-| expr SLASH expr    { Expr_binop(Binop_div, $1, $3)   }
+| expr PLUS expr { Expr_binop(Binop_add, $1, $3) }
+| expr MINUS expr { Expr_binop(Binop_sub, $1, $3) }
+| expr STAR expr { Expr_binop(Binop_mul, $1, $3) }
+| expr SLASH expr { Expr_binop(Binop_div, $1, $3) }
+| expr LE expr { Expr_binop(Binop_le, $1, $3) }
+| expr GE expr { Expr_binop(Binop_ge, $1, $3) }
+| expr LT expr { Expr_binop(Binop_lt, $1, $3) }
+| expr GT expr { Expr_binop(Binop_gt, $1, $3) }
 | MINUS expr         { Expr_unop(Unop_neg, $2) }
 | MIN LP expr COMMA expr RP { Expr_binop(Binop_min, $3, $5) }
 | MAX LP expr COMMA expr RP { Expr_binop(Binop_max, $3, $5) }
 | ABS LP expr RP            { Expr_unop(Unop_abs, $3) }
+| expr QUESTION_MARK expr COLON expr { Expr_if($1, $3, $5) }
 ;
 
 expr_eof: expr EOF { $1 }

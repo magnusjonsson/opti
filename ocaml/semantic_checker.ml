@@ -111,6 +111,7 @@ let check_variables (u: dumb_user) (s: specification)
                 ref_subscripts |> List.iter (fun subscript -> Hashtbl.add subscripts_used_in_references subscript ())
             | Expr_unop(_, e1)    -> check_expr e1
             | Expr_binop(_, e1, e2) -> check_expr e1; check_expr e2
+            | Expr_if(e1, e2, e3) -> check_expr e1; check_expr e2; check_expr e3
             | Expr_index_eq_ne(i1,i2,e1,e2) ->
                 let r1 =
                   try
@@ -152,6 +153,7 @@ let check_for_cyclic_definitions (u: dumb_user) (s: specification): unit
             | Expr_ref(used_variable_name,subscripts) -> Hashtbl.add dependencies defined_variable_name used_variable_name
             | Expr_unop(_, e1) -> visit_expr e1
             | Expr_binop(_, e1, e2) -> visit_expr e1; visit_expr e2
+            | Expr_if(e1, e2, e3) -> visit_expr e1; visit_expr e2; visit_expr e3
             | Expr_index_eq_ne(i1,i2,e1,e2) -> visit_expr e1; visit_expr e2
           in
           visit_expr d.definition_expr_summee
@@ -256,6 +258,18 @@ let join_checked_units (u: dumb_user) (operator: string) (toplevel_variable_name
   | Checked_unit_ok u1, Checked_unit_bad -> Checked_unit_ok u1
   | Checked_unit_bad, Checked_unit_bad -> Checked_unit_bad
 
+let mul_checked_units (cu1 : checked_unit) (cu2 : checked_unit) : checked_unit =
+  match cu1, cu2 with
+  | Checked_unit_ok u1, Checked_unit_ok u2 -> Checked_unit_ok(unit_mul u1 u2 |> unit_canonicalize)
+  | Checked_unit_bad, _ -> Checked_unit_bad
+  | _, Checked_unit_bad -> Checked_unit_bad
+
+let div_checked_units (cu1 : checked_unit) (cu2 : checked_unit) : checked_unit =
+  match cu1, cu2 with
+  | Checked_unit_ok u1, Checked_unit_ok u2 -> Checked_unit_ok(unit_div u1 u2 |> unit_canonicalize)
+  | Checked_unit_bad, _ -> Checked_unit_bad
+  | _, Checked_unit_bad -> Checked_unit_bad
+
 let unit_check_expr (u: dumb_user) (s: specification) (toplevel_variable_name: string) (e: expr): checked_unit =
   let rec check (e: expr): checked_unit
       =
@@ -267,24 +281,26 @@ let unit_check_expr (u: dumb_user) (s: specification) (toplevel_variable_name: s
         with 
           Variable_not_found _ -> Checked_unit_bad
         end
-    | Expr_binop(Binop_mul, e1, e2) ->
-        begin match check e1, check e2 with
-        | Checked_unit_ok u1, Checked_unit_ok u2 -> Checked_unit_ok(unit_mul u1 u2 |> unit_canonicalize)
-        | Checked_unit_bad, _ -> Checked_unit_bad
-        | _, Checked_unit_bad -> Checked_unit_bad
-        end
-    | Expr_binop(Binop_div, e1, e2) ->
-        begin match check e1, check e2 with
-        | Checked_unit_ok u1, Checked_unit_ok u2 -> Checked_unit_ok(unit_div u1 u2 |> unit_canonicalize)
-        | Checked_unit_bad, _ -> Checked_unit_bad
-        | _, Checked_unit_bad -> Checked_unit_bad
-        end
     | Expr_unop(Unop_neg, e1) -> check e1
-    | Expr_binop(Binop_add, e1, e2) -> join_checked_units u "+" toplevel_variable_name (check e1) (check e2)
-    | Expr_binop(Binop_sub, e1, e2) -> join_checked_units u "-" toplevel_variable_name (check e1) (check e2)
-    | Expr_binop(Binop_min, e1, e2) -> join_checked_units u "min" toplevel_variable_name (check e1) (check e2)
-    | Expr_binop(Binop_max, e1, e2) -> join_checked_units u "max" toplevel_variable_name (check e1) (check e2)
     | Expr_unop(Unop_abs, e1) -> check e1
+    | Expr_binop(b, e1, e2) -> begin
+        let cu1 = check e1 in
+        let cu2 = check e2 in
+        match b with
+        | Binop_mul -> mul_checked_units cu1 cu2
+        | Binop_div -> div_checked_units cu1 cu2
+        | Binop_add -> join_checked_units u "+" toplevel_variable_name cu1 cu2
+        | Binop_sub -> join_checked_units u "-" toplevel_variable_name cu1 cu2
+        | Binop_min -> join_checked_units u "min" toplevel_variable_name cu1 cu2
+        | Binop_max -> join_checked_units u "max" toplevel_variable_name cu1 cu2
+        | Binop_le -> ignore(join_checked_units u "<=" toplevel_variable_name cu1 cu2); Checked_unit_ok []
+        | Binop_ge -> ignore(join_checked_units u ">=" toplevel_variable_name cu1 cu2); Checked_unit_ok []
+        | Binop_lt -> ignore(join_checked_units u "<" toplevel_variable_name cu1 cu2); Checked_unit_ok []
+        | Binop_gt -> ignore(join_checked_units u ">" toplevel_variable_name cu1 cu2); Checked_unit_ok []
+      end
+    | Expr_if(e1, e2, e3) ->
+       ignore (join_checked_units u "?" toplevel_variable_name (check e1) (Checked_unit_ok []));
+       join_checked_units u ":" toplevel_variable_name (check e2) (check e3)
     | Expr_index_eq_ne(_,_,e1,e2) -> join_checked_units u "?:" toplevel_variable_name (check e1) (check e2)
   in
   check e

@@ -52,15 +52,24 @@ type c_binop =
   | C_binop_minus
   | C_binop_star
   | C_binop_slash
+  | C_binop_le
+  | C_binop_ge
+  | C_binop_lt
+  | C_binop_gt
 
 let c_binop_string = function
   | C_binop_plus -> "+"
   | C_binop_minus -> "-"
   | C_binop_star -> "*"
   | C_binop_slash -> "/"
+  | C_binop_le -> "<="
+  | C_binop_ge -> ">="
+  | C_binop_lt -> "<"
+  | C_binop_gt -> ">"
 
 type c_precedence =
   | C_precedence_parenthesized
+  | C_precedence_comparative
   | C_precedence_additive_lhs
   | C_precedence_additive_rhs
   | C_precedence_multiplicative_lhs
@@ -72,6 +81,11 @@ let c_binop_precedences = function
   | C_binop_minus -> C_precedence_additive_lhs, C_precedence_additive_rhs
   | C_binop_star -> C_precedence_multiplicative_lhs, C_precedence_multiplicative_rhs
   | C_binop_slash -> C_precedence_multiplicative_lhs, C_precedence_multiplicative_rhs
+  | C_binop_le | C_binop_ge | C_binop_lt | C_binop_gt -> C_precedence_comparative, C_precedence_comparative
+
+type binop_printing_style =
+  | Infix of c_binop
+  | Binary_function of string
 
 let rec print_c_expr (p: pretty_printer) (outer_precedence: c_precedence) (result_representation: representation) (e: expr): unit =
   match e with
@@ -87,32 +101,48 @@ let rec print_c_expr (p: pretty_printer) (outer_precedence: c_precedence) (resul
                               | Representation_float64 -> "fabs(");
       print_c_expr p C_precedence_parenthesized result_representation e1;
       pretty_printer_print p ")"
-  | Expr_binop(Binop_add, e1, e2) -> print_c_binop_expr p outer_precedence result_representation e1 C_binop_plus e2
-  | Expr_binop(Binop_sub, e1, e2) -> print_c_binop_expr p outer_precedence result_representation e1 C_binop_minus e2
-  | Expr_binop(Binop_mul, e1, e2) -> print_c_binop_expr p outer_precedence result_representation e1 C_binop_star e2
-  | Expr_binop(Binop_div, e1, e2) -> print_c_binop_expr p outer_precedence result_representation e1 C_binop_slash e2
-  | Expr_binop(Binop_min, e1, e2) ->
-      pretty_printer_print p (match result_representation with
-                              | Representation_float32 -> "fminf("
-                              | Representation_float64 -> "fmin(");
-      print_c_expr p C_precedence_parenthesized result_representation e1;
-      pretty_printer_print p ", ";
-      print_c_expr p C_precedence_parenthesized result_representation e2;
-      pretty_printer_print p ")"
-  | Expr_binop(Binop_max, e1, e2) ->
-      pretty_printer_print p (match result_representation with
-                              | Representation_float32 -> "fmaxf("
-                              | Representation_float64 -> "fmax(");
-      print_c_expr p C_precedence_parenthesized result_representation e1;
-      pretty_printer_print p ", ";
-      print_c_expr p C_precedence_parenthesized result_representation e2;
-      pretty_printer_print p ")"
+  | Expr_binop(b, e1, e2) -> begin
+      let printing_style =
+        match b with
+        | Binop_add -> Infix(C_binop_plus)
+        | Binop_sub -> Infix(C_binop_minus)
+        | Binop_mul -> Infix(C_binop_star)
+        | Binop_div -> Infix(C_binop_slash)
+        | Binop_min -> Binary_function(match result_representation with
+                                       | Representation_float32 -> "fminf"
+                                       | Representation_float64 -> "fmin")
+        | Binop_max -> Binary_function(match result_representation with
+                                       | Representation_float32 -> "fmaxf"
+                                       | Representation_float64 -> "fmax")
+        | Binop_le -> Infix(C_binop_le)
+        | Binop_ge -> Infix(C_binop_ge)
+        | Binop_lt -> Infix(C_binop_lt)
+        | Binop_gt -> Infix(C_binop_gt)
+      in
+      match printing_style with
+      | Infix c_binop -> print_c_binop_expr p outer_precedence result_representation e1 c_binop e2
+      | Binary_function f ->
+         pretty_printer_print p f;
+         pretty_printer_print p "(";
+         print_c_expr p C_precedence_parenthesized result_representation e1;
+         pretty_printer_print p ", ";
+         print_c_expr p C_precedence_parenthesized result_representation e2;
+         pretty_printer_print p ")"
+    end
+  | Expr_if(e1, e2, e3) ->
+     pretty_printer_print p "(";
+     print_c_expr p C_precedence_parenthesized Representation_float64 e1;
+     pretty_printer_print p " ? ";
+     print_c_expr p C_precedence_parenthesized result_representation e2;
+     pretty_printer_print p " : ";
+     print_c_expr p C_precedence_parenthesized result_representation e3;
+     pretty_printer_print p ")"
   | Expr_index_eq_ne(i1, i2, e1, e2) ->
-      pretty_printer_print p (Printf.sprintf "(%s == %s ? " i1 i2);
-      print_c_expr p C_precedence_parenthesized result_representation e1;
-      pretty_printer_print p " : ";
-      print_c_expr p C_precedence_parenthesized result_representation e2;
-      pretty_printer_print p ")"
+     pretty_printer_print p (Printf.sprintf "(%s == %s ? " i1 i2);
+     print_c_expr p C_precedence_parenthesized result_representation e1;
+     pretty_printer_print p " : ";
+     print_c_expr p C_precedence_parenthesized result_representation e2;
+     pretty_printer_print p ")"
 
 and print_c_binop_expr (p: pretty_printer) (outer_precedence: c_precedence) (result_representation : representation) (e1: expr) (c_binop: c_binop) (e2: expr): unit
     =

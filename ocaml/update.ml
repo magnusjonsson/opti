@@ -14,6 +14,7 @@ let collect_subscript_comparisons (e: expr) : (string * string) list
     | Expr_ref(_,_) -> []
     | Expr_unop(_, e1) -> collect e1
     | Expr_binop(_, e1, e2) -> collect e1 @ collect e2
+    | Expr_if(e1, e2, e3) -> collect e1 @ collect e2 @ collect e3
     | Expr_index_eq_ne(i1, i2, e1, e2) -> [i1,i2] @ collect e1 @ collect e2
   in
   Utils.nub_list (collect e)
@@ -30,6 +31,7 @@ let assume_subscripts_not_equal_in_expr (i1: string) (i2: string) (e: expr) : ex
     | Expr_ref(variable_name, subscripts) -> e
     | Expr_unop(u, e1) -> Expr_unop(u, transform e1)
     | Expr_binop(b, e1, e2) -> Expr_binop(b, transform e1, transform e2)
+    | Expr_if(e1, e2, e3) -> Expr_if(transform e1, transform e2, transform e3)
     | Expr_index_eq_ne(n1, n2, e1, e2) ->
       if (n1,n2) = (i1,i2) || (n1,n2) = (i2,i1) then
         transform e2

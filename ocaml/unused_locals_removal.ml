@@ -5,10 +5,12 @@ let rec used_variables_in_expr (e : expr) : string list =
   match e with
   | Expr_const _ -> []
   | Expr_ref(name, _) -> [name]
-  | Expr_unop(_, e') -> used_variables_in_expr e'
-  | Expr_binop(_, e', e'')
-  | Expr_index_eq_ne(_, _, e', e'') ->
-     used_variables_in_expr e' @ used_variables_in_expr e''
+  | Expr_unop(_, e1) -> used_variables_in_expr e1
+  | Expr_binop(_, e1, e2)
+  | Expr_index_eq_ne(_, _, e1, e2) ->
+     used_variables_in_expr e1 @ used_variables_in_expr e2
+  | Expr_if(e1, e2, e3) ->
+     used_variables_in_expr e1 @ used_variables_in_expr e2 @ used_variables_in_expr e3
 
 
 (** The following three recursive functions form an attribute grammar for removing unused locals:
