@@ -17,6 +17,7 @@ rule token = parse
 						   "phantom", Parser.PHANTOM;
                                                    "sum", Parser.SUM;
                                                    "proc", Parser.PROC;
+                                                   "gets", Parser.GETS;
                                                    "recomputes", Parser.RECOMPUTES;
                                                    "propagates", Parser.PROPAGATES;
                                                    "delta", Parser.DELTA;

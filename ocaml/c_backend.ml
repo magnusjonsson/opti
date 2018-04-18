@@ -34,9 +34,13 @@ let print_c_reference (p: pretty_printer) ~(name: string) ~(indices: string list
   pretty_printer_print p name;
   indices |> List.iter (fun dim -> pretty_printer_print p (Printf.sprintf "[%s]" dim))
 
-let print_c_function_declaration (p: pretty_printer) ~(function_name: string) ~(return_type: string) ~(index_args: string list) ~(value_args: (string * representation * unit_) list): unit
-    =
-  pretty_printer_print p (Printf.sprintf "%s %s(" return_type function_name);
+let print_c_function_declaration (p: pretty_printer) ~(function_name: string) ~(index_args: string list) ~(value_args: (string * representation * unit_) list) ~(return_value: (expr * representation * unit_) option): unit
+  =
+  let return_type : string = match return_value with
+    | None -> "void"
+    | Some(expr, repr, unit_) -> c_unit unit_ ^ " " ^ c_representation repr
+  in
+  pretty_printer_print p (Printf.sprintf "static %s %s(" return_type function_name);
   let sep = ref "" in
   index_args |> List.iter (fun index_arg ->
     pretty_printer_print p (Printf.sprintf "%sint %s" (!sep) index_arg);
@@ -226,11 +230,18 @@ and print_statement (p: pretty_printer) (m: module_) (statement: statement): uni
 let print_procedures (p : pretty_printer) (m : module_) : unit =
   m.module_procedures |> List.iter
       (fun (procedure_name, proc) ->
-        print_c_function_declaration p procedure_name "static void" proc.procedure_index_args proc.procedure_value_args;
+        print_c_function_declaration p procedure_name proc.procedure_index_args proc.procedure_value_args proc.procedure_return_value;
         pretty_printer_open_block p " {";
         proc.procedure_index_args |> List.iter (fun index_arg -> pretty_printer_println p (Printf.sprintf "(void) %s;" index_arg));
         proc.procedure_value_args |> List.iter (fun (value_arg, _, _) -> pretty_printer_println p (Printf.sprintf "(void) %s;" value_arg));
         proc.procedure_body |> List.iter (print_step p m);
+        begin match proc.procedure_return_value with
+        | None -> ()
+        | Some(expr, representation, _) ->
+           pretty_printer_print p "return ";
+           print_c_expr p C_precedence_parenthesized representation expr;
+           pretty_printer_println p ";"
+        end;
         pretty_printer_close_block p "}";
       )
 

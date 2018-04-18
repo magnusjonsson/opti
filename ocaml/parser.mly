@@ -29,6 +29,7 @@ open Syntax_tree
 %token PROC
 %token SUM
 %token EQUALS
+%token GETS
 %token RECOMPUTES
 %token PROPAGATES
 %token DELTA
@@ -121,7 +122,8 @@ id_list:
 ;
 
 goal:
-  RECOMPUTES ID             { Goal_recompute($2) }
+| GETS ID                   { Goal_get($2) }
+| RECOMPUTES ID             { Goal_recompute($2) }
 | PROPAGATES DELTA id_list  { Goal_propagate_delta($3) }
 | SETS id_list              { Goal_set $2 }
 | INCREMENTS id_list        { Goal_increment $2 }

@@ -31,6 +31,7 @@ and step =
 type procedure = {
   procedure_index_args : string list;
   procedure_value_args : (string * representation * unit_) list;
+  procedure_return_value : (expr * representation * unit_) option;
   procedure_body : step list;
 }
 

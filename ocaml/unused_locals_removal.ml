@@ -79,15 +79,17 @@ and remove_unused_locals_in_statement (statement : statement) (used_locals : str
      end
 
 let remove_unused_locals_in_procedure (p : procedure) : procedure =
-  let simplified_body, used_locals = remove_unused_locals_in_steps p.procedure_body [] in
-  { procedure_index_args = p.procedure_index_args;
-    procedure_value_args = p.procedure_value_args;
-    procedure_body = simplified_body;
+  let used_locals = match p.procedure_return_value with
+    | None -> []
+    | Some(expr, repr, unit_) -> used_variables_in_expr expr
+  in
+  let simplified_body, used_locals = remove_unused_locals_in_steps p.procedure_body used_locals in
+  { p with
+    procedure_body = simplified_body
   }
 
 let remove_unused_locals_in_module (m : module_) : module_ =
-  { module_ranges = m.module_ranges;
-    module_variables = m.module_variables;
+  { m with
     module_procedures = m.module_procedures |> List.map (fun (name, proc) ->
                                                          (name, remove_unused_locals_in_procedure proc));
   }

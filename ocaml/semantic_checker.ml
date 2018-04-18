@@ -187,6 +187,7 @@ let all_base_units_in_specification (s : specification): string list =
 
 let check_goal (u: dumb_user) (s: specification) (goal_name: string) (g: goal): unit =
   match g with
+  | Goal_get variable_name
   | Goal_recompute variable_name -> begin
       try ignore (specification_find_variable s variable_name)
       with Variable_not_found _ ->

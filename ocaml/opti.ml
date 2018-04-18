@@ -4,6 +4,7 @@ open Fresh
 open Delta
 open Update
 open Unit
+open Eval
 
 let direct_dependent_updates (s: specification) (g: fresh_name_generator) ~(direct_dependents_table: (string, string) Hashtbl.t) ~(rank_table: (string, int) Hashtbl.t) (deltas: delta list): update list
     =
@@ -121,21 +122,49 @@ let rec compute_rank_table (direct_dependents: (string, string) Hashtbl.t): (str
   direct_dependents |> Hashtbl.iter (fun var _ -> compute_rank var |> ignore);
   rank_table
 
-let generate_procedure_to_recompute (s: specification) ~(variable_name: string) ~(v: variable) ~(d: definition_expr)
+let generate_procedure_to_get (s: specification) (variable_name:string) : Imperative.procedure
     =
-  let index_args : string list = v.variable_subscripts |> List.map fst in
-  {
-    Imperative.procedure_index_args = index_args;
-    Imperative.procedure_value_args = [];
-    Imperative.procedure_body =
-      [Imperative.Step_let("sum", v.variable_representation, v.variable_unit, Expr_const(0.0));
-       Imperative.Step_do(Imperative.nested_for
-                            ~subscripts:d.definition_expr_summation_subscripts
-                            ~body: (Imperative.Statement_increment(Imperative.Lhs_local("sum", v.variable_representation),
-                                                                   d.definition_expr_summee)));
-       Imperative.Step_do(Imperative.Statement_assign(Imperative.Lhs_global(variable_name, index_args),
-                                                      Expr_ref("sum", [])))]
-  }
+    let v = specification_find_variable s variable_name in
+    let index_args : string list = v.variable_subscripts |> List.map fst in
+    let f = make_fresh_name_generator () in
+    let steps, result = eval s f (Expr_ref(variable_name, index_args)) in
+    {
+      Imperative.procedure_index_args = index_args;
+      Imperative.procedure_value_args = [];
+      Imperative.procedure_return_value = Some (result, v.variable_representation, v.variable_unit);
+      Imperative.procedure_body = steps;
+    }
+
+exception Recompute_phantom of string
+exception Recompute_extern of string
+exception Recompute_given of string
+
+let generate_procedure_to_recompute (s: specification) (variable_name : string) : Imperative.procedure
+    =
+    let v = specification_find_variable s variable_name in
+    match v.variable_linkage with
+    | Linkage_phantom -> raise (Recompute_phantom(variable_name))
+    | Linkage_extern -> raise (Recompute_extern(variable_name))
+    | Linkage_public | Linkage_private ->  begin
+        match v.variable_definition with
+        | Definition_given -> raise (Recompute_given(variable_name))
+        | Definition_expr d ->
+           let f = make_fresh_name_generator() in
+           let index_args : string list = v.variable_subscripts |> List.map fst in
+           (* While evaluating, pretend that the variable is a phantom variable *)
+           let v' = { v with variable_linkage = Linkage_phantom } in
+           let s' = specification_add_variable variable_name v' s in
+           let steps, result = eval s' f (Expr_ref(variable_name, index_args)) in
+           {
+             Imperative.procedure_index_args = index_args;
+             Imperative.procedure_value_args = [];
+             Imperative.procedure_return_value = None;
+             Imperative.procedure_body =
+               steps @
+                 [Imperative.Step_do(Imperative.Statement_assign(Imperative.Lhs_global(variable_name, index_args),
+                                                                 result))]
+           }
+      end
 
 let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: string list) : Imperative.procedure
     =
@@ -155,6 +184,7 @@ let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: 
       deltas |> List.map (fun d -> d.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
       deltas |> List.map (fun d -> (d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit));
+    Imperative.procedure_return_value = None;
     Imperative.procedure_body =
       let direct_dependents_table = compute_direct_dependents_table s in
       let rank_table = compute_rank_table direct_dependents_table in
@@ -181,6 +211,7 @@ let generate_procedure_to_increment_variables (s: specification) ~(variable_name
       deltas |> List.map (fun d -> d.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
       deltas |> List.map (fun d -> (d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit));
+    Imperative.procedure_return_value = None;
     Imperative.procedure_body =
       let direct_dependents_table = compute_direct_dependents_table s in
       let rank_table = compute_rank_table direct_dependents_table in
@@ -217,6 +248,7 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
       assignments |> List.map (fun a -> a.assignment_delta.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
       assignments |> List.map (fun a -> (a.assignment_value, a.assignment_delta.delta_variable.variable_representation, a.assignment_delta.delta_variable.variable_unit));
+    Imperative.procedure_return_value = None;
     Imperative.procedure_body =
       let assign_and_compute_deltas =
         List.concat (assignments |> List.map
@@ -239,6 +271,7 @@ let generate_procedure_to_scale_unit (s: specification) (u: string) : Imperative
   let factor = fresh_name_generator_generate_name f "factor" in
   { Imperative.procedure_index_args = [];
     Imperative.procedure_value_args = [factor, Representation_float64, unit_one];
+    Imperative.procedure_return_value = None;
     Imperative.procedure_body =
       s.specification_variables
       |> List.map
@@ -282,19 +315,15 @@ let generate_imperative_variables (s: specification) : (string * Imperative.vari
   |> List.concat
 
 
-exception Recompute_given of string * string
-
 let generate_imperative_procedures (s: specification) : (string * Imperative.procedure) list =
   s.specification_goals |> List.map
     (fun (function_name, g) ->
       function_name,
       match g with
+      | Goal_get variable_name ->
+         generate_procedure_to_get s variable_name
       | Goal_recompute variable_name ->
-          let v: variable = specification_find_variable s variable_name in
-          begin match v.variable_definition with
-          | Definition_given -> raise (Recompute_given(function_name, variable_name))
-          | Definition_expr d -> generate_procedure_to_recompute s variable_name v d
-          end 
+         generate_procedure_to_recompute s variable_name
       | Goal_propagate_delta variable_names ->
           generate_procedure_to_propagate_deltas s variable_names
       | Goal_set variable_names ->

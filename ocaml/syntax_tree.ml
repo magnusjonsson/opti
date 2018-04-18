@@ -41,6 +41,7 @@ type variable = {
 (* Computational goals *)
 
 type goal =
+  | Goal_get of string
   | Goal_recompute of string
   | Goal_propagate_delta of string list
   | Goal_set of string list
