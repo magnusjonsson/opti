@@ -56,15 +56,18 @@ let rec compute_expr_delta ~(deltas: delta list) (e : expr) =
                                  Expr_binop(Binop_mul, e1', e2)),
                       Expr_binop(Binop_mul, e1', e2'))
         | Binop_div ->
+           (*
+             (1/e2)' = 1/e2 - 1/(e2 - e2') = (-e2 + e2 - e2') / e2(e2 - e2') = -e2' / e2(e2 - e2')
+            *)
            let e2_recip' = Expr_binop(Binop_div,
                                       Expr_unop(Unop_neg, e2'),
                                       Expr_binop(Binop_mul, e2, Expr_binop(Binop_sub, e2, e2'))) in
+           (* Like mul above but substitute e2 -> 1/e2 *)
            Expr_binop(Binop_sub,
                       Expr_binop(Binop_add,
                                  Expr_binop(Binop_mul, e1, e2_recip'),
                                  Expr_binop(Binop_div, e1', e2)),
-                      Expr_binop(Binop_div, e1', e2_recip'))
-
+                      Expr_binop(Binop_mul, e1', e2_recip'))
         | Binop_min | Binop_max
           | Binop_le | Binop_ge | Binop_lt | Binop_gt ->
            let old_e1 = Expr_binop(Binop_sub, e1, e1') in
