@@ -46,8 +46,7 @@ open Syntax_tree
 %token FLOAT64
 %token EOF
 
-%nonassoc QUESTION_MARK
-%nonassoc COLON
+%right QUESTION_MARK COLON
 %left LE GE LT GT
 %left PLUS MINUS
 %left STAR SLASH

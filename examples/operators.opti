@@ -11,7 +11,8 @@ public h unit 1 = a <= b;
 public i unit 1 = a >= b;
 
 public j unit u = a < b ? a : b;
-
+public k unit u = a < b ? a :
+                  c < d ? c : e;
 
 proc recompute_c recomputes c;
 proc recompute_d recomputes d;
@@ -21,3 +22,4 @@ proc recompute_g recomputes g;
 proc recompute_h recomputes h;
 proc recompute_i recomputes i;
 proc recompute_j recomputes j;
+proc recompute_k recomputes k;
