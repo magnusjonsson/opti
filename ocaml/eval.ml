@@ -19,18 +19,22 @@ let rec eval (s: specification) (f : fresh_name_generator) (e : expr) : Imperati
              let renames : (string * string) list = List.combine index_args subscripts in
              let alpha_rename (name : string) = try List.assoc name renames with Not_found -> name in
              let summee = map_subscripts_in_expr alpha_rename d.definition_expr_summee in
-             let sum_variable_name = fresh_name_generator_generate_name f (variable_name ^ "_sum") in
-             let steps =
-               [Imperative.Step_let(sum_variable_name, v.variable_representation, v.variable_unit, Expr_const(0.0));
-                Imperative.Step_do(Imperative.nested_for
-                                     ~subscripts:d.definition_expr_summation_subscripts
-                                     ~body: (Imperative.Statement_block(
-                                                 let steps, result = eval s f summee in
-                                                 steps @
-                                                   [Step_do(Imperative.Statement_increment(Imperative.Lhs_local(sum_variable_name, v.variable_representation), result))])))]
-             in
-             let result = Expr_ref(sum_variable_name, []) in
-             steps, result
+             begin match d.definition_expr_summation_subscripts with
+             | [] -> eval s f summee
+             | _ ->
+                let sum_variable_name = fresh_name_generator_generate_name f (variable_name ^ "_sum") in
+                let steps =
+                  [Imperative.Step_let(sum_variable_name, v.variable_representation, v.variable_unit, Expr_const(0.0));
+                   Imperative.Step_do(Imperative.nested_for
+                                        ~subscripts:d.definition_expr_summation_subscripts
+                                        ~body: (Imperative.Statement_block(
+                                                    let steps, result = eval s f summee in
+                                                    steps @
+                                                      [Step_do(Imperative.Statement_increment(Imperative.Lhs_local(sum_variable_name, v.variable_representation), result))])))]
+                in
+                let result = Expr_ref(sum_variable_name, []) in
+                steps, result
+             end
         end
     end
   | Expr_const c -> [], Expr_const c
