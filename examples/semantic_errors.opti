@@ -29,3 +29,5 @@ range range1 cname NUM_RANGE_1;
 range range2 cname NUM_RANGE_2;
 
 proc x scales unit unused_base_unit;
+
+public div_by_zero unit 1 = 1 / 0;
