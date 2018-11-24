@@ -1,0 +1,12 @@
+opam-version: "2.0"
+name: "opti"
+version: "1.0"
+maintainer: "Johan Magnus Jonsson <jmagnusj@gmail.com>"
+authors: ["Johan Magnus Jonsson <jmagnusj@gmail.com>"]
+license: "BSD3"
+homepage: "https://github.com/magnusjonsson/opti"
+bug-reports: "https://github.com/magnusjonsson/opti/issues"
+dev-repo: "https://github.com/magnusjonsson/opti.git"
+build: [
+  ["dune" "build" "--only" "opti" "--root" "." "-j" jobs "@install"]
+]

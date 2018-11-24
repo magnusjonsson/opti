@@ -1,0 +1,5 @@
+(executable
+ (name opti_main))
+
+(ocamllex lexer)
+(ocamlyacc parser)
