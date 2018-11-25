@@ -21,3 +21,6 @@ setup.log
 
 * emacs generated backups
 *~
+
+# dune generated .merlin files
+*.merlin

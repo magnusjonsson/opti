@@ -1,8 +1,7 @@
+open Opti
 open Expr
-open Syntax_tree
 open Simplify
 open Update
-open Opti
 open OUnit
 
 let expr_of_string (s: string): expr

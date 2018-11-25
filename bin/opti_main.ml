@@ -1,3 +1,4 @@
+open Opti
 open Syntax_tree
 open Pretty_printer
 
@@ -35,7 +36,7 @@ let main () =
     | Semantic_checker.Failed_checks -> exit 1
   end;
   let imperative_module =
-    Opti.generate_imperative_module s
+    Compiler.generate_imperative_module s
     |> Unused_locals_removal.remove_unused_locals_in_module
   in
   begin

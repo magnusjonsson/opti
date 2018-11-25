@@ -1,12 +1,13 @@
 opam-version: "2.0"
 name: "opti"
 version: "1.0"
+synopsis: "DSL to generate fast incremental C code from declarative specifications"
 maintainer: "Johan Magnus Jonsson <jmagnusj@gmail.com>"
 authors: ["Johan Magnus Jonsson <jmagnusj@gmail.com>"]
 license: "BSD3"
 homepage: "https://github.com/magnusjonsson/opti"
 bug-reports: "https://github.com/magnusjonsson/opti/issues"
-dev-repo: "https://github.com/magnusjonsson/opti.git"
+dev-repo: "git://github.com/magnusjonsson/opti.git"
 build: [
   ["dune" "build" "-p" "opti"]
 ]
