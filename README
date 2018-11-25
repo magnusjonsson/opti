@@ -2,7 +2,7 @@ Opti is a DSL and compiler to generate fast incremental C code from declarative 
 
 To build the ocaml code, do:
 
-    dune build @runtests @install
+    dune build @runtest @install
 
 The opti main program can then be invoked as follows:
 
