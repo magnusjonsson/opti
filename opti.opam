@@ -9,6 +9,9 @@ license: "BSD3"
 homepage: "https://github.com/magnusjonsson/opti"
 bug-reports: "https://github.com/magnusjonsson/opti/issues"
 dev-repo: "git://github.com/magnusjonsson/opti.git"
+depends: [
+  "dune"
+]
 build: [
   ["dune" "build" "-p" "opti"]
 ]
