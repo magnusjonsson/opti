@@ -1,3 +1,7 @@
+1.0.3
+-----
+opam-packages pull request feedback.
+
 1.0.2
 -----
 Changelog needs to be committed before tagging.
