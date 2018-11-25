@@ -8,5 +8,5 @@ homepage: "https://github.com/magnusjonsson/opti"
 bug-reports: "https://github.com/magnusjonsson/opti/issues"
 dev-repo: "https://github.com/magnusjonsson/opti.git"
 build: [
-  ["dune" "build" "--only" "opti" "--root" "." "-j" jobs "@install"]
+  ["dune" "build" "-p" "opti"]
 ]

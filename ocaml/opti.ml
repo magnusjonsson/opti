@@ -57,7 +57,7 @@ let bring_into_loop (loop_subscripts : (string * string) list) (u: update) : upd
 
 let rec emit_code_to_propagate_deltas (s: specification) (g: fresh_name_generator) ~(direct_dependents_table: (string, string) Hashtbl.t) ~(rank_table: (string, int) Hashtbl.t) ~(deltas: delta list) : Imperative.step list
     =
-  let updates: update list = direct_dependent_updates s g direct_dependents_table rank_table deltas in
+  let updates: update list = direct_dependent_updates s g ~direct_dependents_table ~rank_table deltas in
 
   (* group the updates by rank and subscripts and perform updates *)
 
@@ -88,7 +88,7 @@ let rec emit_code_to_propagate_deltas (s: specification) (g: fresh_name_generato
                   @ emit_code_to_propagate_deltas s g ~direct_dependents_table ~rank_table ~deltas:new_deltas)
              end))
 
-let rec compute_direct_dependents_table (s: specification): (string, string) Hashtbl.t
+let compute_direct_dependents_table (s: specification): (string, string) Hashtbl.t
     =
   let direct_dependents: (string, string) Hashtbl.t  = Hashtbl.create 100 in
   s.specification_variables |> List.iter
@@ -98,17 +98,17 @@ let rec compute_direct_dependents_table (s: specification): (string, string) Has
       | Definition_expr d ->
           let rec visit_expr = function
             | Expr_const _ -> ()
-            | Expr_ref(used_variable_name,subscripts) -> Hashtbl.add direct_dependents used_variable_name defined_variable_name
+            | Expr_ref(used_variable_name,_subscripts) -> Hashtbl.add direct_dependents used_variable_name defined_variable_name
             | Expr_unop(_, e1) -> visit_expr e1
             | Expr_binop(_, e1, e2) -> visit_expr e1; visit_expr e2
             | Expr_if(e1, e2, e3) -> visit_expr e1; visit_expr e2; visit_expr e3
-            | Expr_index_eq_ne(i1,i2,e1,e2) -> visit_expr e1; visit_expr e2
+            | Expr_index_eq_ne(_i1,_i2,e1,e2) -> visit_expr e1; visit_expr e2
           in
           visit_expr d.definition_expr_summee
     );
   direct_dependents
 
-let rec compute_rank_table (direct_dependents: (string, string) Hashtbl.t): (string, int) Hashtbl.t
+let compute_rank_table (direct_dependents: (string, string) Hashtbl.t): (string, int) Hashtbl.t
     =
   let rank_table = Hashtbl.create 10 in
   let rec compute_rank var: int =
@@ -148,7 +148,7 @@ let generate_procedure_to_recompute (s: specification) (variable_name : string) 
     | Linkage_public | Linkage_private ->  begin
         match v.variable_definition with
         | Definition_given -> raise (Recompute_given(variable_name))
-        | Definition_expr d ->
+        | Definition_expr _ ->
            let f = make_fresh_name_generator() in
            let index_args : string list = v.variable_subscripts |> List.map fst in
            (* While evaluating, pretend that the variable is a phantom variable *)
@@ -176,7 +176,7 @@ let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: 
         { delta_variable_name = variable_name;
           delta_variable = v;
           delta_variable_subscripts = List.map fst v.variable_subscripts;
-          delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
+          delta_amount = fresh_name_generator_generate_name g ~base_name:(variable_name ^ "_delta");
         })
   in
   {
@@ -202,7 +202,7 @@ let generate_procedure_to_increment_variables (s: specification) ~(variable_name
         { delta_variable_name = variable_name;
           delta_variable = v;
           delta_variable_subscripts = List.map fst v.variable_subscripts;
-          delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
+          delta_amount = fresh_name_generator_generate_name g ~base_name:(variable_name ^ "_delta");
         }
       )
   in
@@ -232,12 +232,12 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
       (fun variable_name ->
         let v = specification_find_variable s variable_name in
         {
-          assignment_value = fresh_name_generator_generate_name g (variable_name ^ "_new_value");
+          assignment_value = fresh_name_generator_generate_name g ~base_name:(variable_name ^ "_new_value");
           assignment_delta = {
               delta_variable_name = variable_name;
               delta_variable = v;
               delta_variable_subscripts = v.variable_subscripts |> List.map fst;
-              delta_amount = fresh_name_generator_generate_name g (variable_name ^ "_delta");
+              delta_amount = fresh_name_generator_generate_name g ~base_name:(variable_name ^ "_delta");
           }
         })
   in
@@ -268,7 +268,7 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
 
 let generate_procedure_to_scale_unit (s: specification) (u: string) : Imperative.procedure =
   let f = make_fresh_name_generator() in
-  let factor = fresh_name_generator_generate_name f "factor" in
+  let factor = fresh_name_generator_generate_name f ~base_name:"factor" in
   { Imperative.procedure_index_args = [];
     Imperative.procedure_value_args = [factor, Representation_float64, unit_one];
     Imperative.procedure_return_value = None;
@@ -280,16 +280,16 @@ let generate_procedure_to_scale_unit (s: specification) (u: string) : Imperative
              if power == 0 then
                []
              else
-               let raised_factor = fresh_name_generator_generate_name f "factor" in
+               let raised_factor = fresh_name_generator_generate_name f ~base_name:"factor" in
                [Imperative.Step_let(raised_factor,
                                     v.variable_representation,
                                     unit_one,
                                     Simplify.smart_int_pow (Expr_ref(factor, [])) power);
                 Imperative.Step_do(Imperative.nested_for
-                                     v.variable_subscripts
-                                     (Imperative.Statement_scale(
-                                          Imperative.Lhs_global(variable_name, List.map fst v.variable_subscripts),
-                                          Expr_ref(raised_factor, []))))]
+                                     ~subscripts:v.variable_subscripts
+                                     ~body:(Imperative.Statement_scale(
+                                                Imperative.Lhs_global(variable_name, List.map fst v.variable_subscripts),
+                                                Expr_ref(raised_factor, []))))]
            )
       |> List.concat;
   }
@@ -309,7 +309,7 @@ let generate_imperative_variables (s: specification) : (string * Imperative.vari
         | Some linkage ->
            [variable_name, {
                Imperative.variable_linkage = linkage;
-               Imperative.variable_dimensions = v.variable_subscripts |> List.map (fun (name_,range_name) -> range_name);
+               Imperative.variable_dimensions = v.variable_subscripts |> List.map (fun (_name,range_name) -> range_name);
                Imperative.variable_representation = v.variable_representation;
                Imperative.variable_unit = v.variable_unit;}])
   |> List.concat
@@ -325,11 +325,11 @@ let generate_imperative_procedures (s: specification) : (string * Imperative.pro
       | Goal_recompute variable_name ->
          generate_procedure_to_recompute s variable_name
       | Goal_propagate_delta variable_names ->
-          generate_procedure_to_propagate_deltas s variable_names
+          generate_procedure_to_propagate_deltas s ~variable_names
       | Goal_set variable_names ->
-         generate_procedure_to_set_variables s variable_names
+         generate_procedure_to_set_variables s ~variable_names
       | Goal_increment variable_names ->
-         generate_procedure_to_increment_variables s variable_names
+         generate_procedure_to_increment_variables s ~variable_names
       | Goal_scale_unit unit_ ->
          generate_procedure_to_scale_unit s unit_
     )

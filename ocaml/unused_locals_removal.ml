@@ -31,7 +31,7 @@ let rec remove_unused_locals_in_steps (steps : step list) (used_locals : string 
      end
 and remove_unused_locals_in_step (step : step) (used_locals : string list) : (step * string list) option =
   match step with
-  | Step_let(name, repr, unit_, expr) ->
+  | Step_let(name, _repr, _unit, expr) ->
      if List.mem name used_locals then
        Some (step, used_variables_in_expr expr @ used_locals)
      else
@@ -48,7 +48,7 @@ and remove_unused_locals_in_statement (statement : statement) (used_locals : str
   | Statement_increment(lhs, expr) ->
      begin
        match lhs with
-       | Lhs_local(name,repr) ->
+       | Lhs_local(name, _repr) ->
           if List.mem name used_locals then
             Some (statement, used_variables_in_expr expr @ used_locals)
           else
@@ -58,7 +58,7 @@ and remove_unused_locals_in_statement (statement : statement) (used_locals : str
   | Statement_scale(lhs, expr) ->
      begin
        match lhs with
-       | Lhs_local(name, repr) ->
+       | Lhs_local(name, _repr) ->
           if List.mem name used_locals then
             Some (statement, used_variables_in_expr expr @ used_locals)
           else
@@ -81,9 +81,9 @@ and remove_unused_locals_in_statement (statement : statement) (used_locals : str
 let remove_unused_locals_in_procedure (p : procedure) : procedure =
   let used_locals = match p.procedure_return_value with
     | None -> []
-    | Some(expr, repr, unit_) -> used_variables_in_expr expr
+    | Some(expr, _repr, _unit) -> used_variables_in_expr expr
   in
-  let simplified_body, used_locals = remove_unused_locals_in_steps p.procedure_body used_locals in
+  let simplified_body, _used_locals = remove_unused_locals_in_steps p.procedure_body used_locals in
   { p with
     procedure_body = simplified_body
   }

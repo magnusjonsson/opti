@@ -9,18 +9,18 @@ let c_representation : representation -> string = function
   | Representation_float64 -> "double"
 
 let c_unit (u : unit_) : string =
-  let positive, negative = List.partition (fun (name,power) -> power > 0) u in
+  let positive, negative = List.partition (fun (_name,power) -> power > 0) u in
   let buf = Buffer.create 20 in
   let sep = ref "" in
   Printf.bprintf buf "unit(";
   positive |> List.iter (fun (name, power) ->
-                         for i = 1 to power do
+                         for _ = 1 to power do
                            Printf.bprintf buf "%s%s" (!sep) name;
                            sep := "*"
                          done);
   if !sep = "" then Printf.bprintf buf "1";
   negative |> List.iter (fun (name, power) ->
-                         for i = 1 to -power do
+                         for _ = 1 to -power do
                            Printf.bprintf buf "/%s" name
                          done);
   Printf.bprintf buf ")";
@@ -38,7 +38,7 @@ let print_c_function_declaration (p: pretty_printer) ~(function_name: string) ~(
   =
   let return_type : string = match return_value with
     | None -> "void"
-    | Some(expr, repr, unit_) -> c_unit unit_ ^ " " ^ c_representation repr
+    | Some(_expr, repr, unit_) -> c_unit unit_ ^ " " ^ c_representation repr
   in
   pretty_printer_print p (Printf.sprintf "static %s %s(" return_type function_name);
   let sep = ref "" in
@@ -95,7 +95,7 @@ let rec print_c_expr (p: pretty_printer) (outer_precedence: c_precedence) (resul
   match e with
   | Expr_const 0.0 -> pretty_printer_print p "0"
   | Expr_const f -> pretty_printer_print p (string_of_float f ^ c_literal_suffix result_representation)
-  | Expr_ref(name, subscripts) -> print_c_reference p name subscripts
+  | Expr_ref(name, subscripts) -> print_c_reference p ~name ~indices:subscripts
   | Expr_unop(Unop_neg, e1) ->
       pretty_printer_print p "-";
       print_c_expr p C_precedence_unary result_representation e1
@@ -174,15 +174,15 @@ let close_c_for_loop p
 let print_lhs (p: pretty_printer) (lhs: lhs): unit =
   match lhs with
   | Lhs_global(variable_name, variable_subscripts) ->
-    print_c_reference p variable_name variable_subscripts;
-  | Lhs_local(variable_name, representation) ->
+    print_c_reference p ~name:variable_name ~indices:variable_subscripts;
+  | Lhs_local(variable_name, _representation) ->
     pretty_printer_print p variable_name
 
 let lhs_representation (m: module_) (lhs: lhs): representation =
   match lhs with
-  | Lhs_global(variable_name, variable_subscripts) ->
+  | Lhs_global(variable_name, _variable_subscripts) ->
      (module_find_variable m variable_name).variable_representation
-  | Lhs_local(variable_name, representation) ->
+  | Lhs_local(_variable_name, representation) ->
      representation
 
 let rec print_step (p: pretty_printer) (m: module_) (step: step): unit =
@@ -230,7 +230,7 @@ and print_statement (p: pretty_printer) (m: module_) (statement: statement): uni
 let print_procedures (p : pretty_printer) (m : module_) : unit =
   m.module_procedures |> List.iter
       (fun (procedure_name, proc) ->
-        print_c_function_declaration p procedure_name proc.procedure_index_args proc.procedure_value_args proc.procedure_return_value;
+        print_c_function_declaration p ~function_name:procedure_name ~index_args:proc.procedure_index_args ~value_args:proc.procedure_value_args ~return_value:proc.procedure_return_value;
         pretty_printer_open_block p " {";
         proc.procedure_index_args |> List.iter (fun index_arg -> pretty_printer_println p (Printf.sprintf "(void) %s;" index_arg));
         proc.procedure_value_args |> List.iter (fun (value_arg, _, _) -> pretty_printer_println p (Printf.sprintf "(void) %s;" value_arg));
@@ -255,7 +255,7 @@ let print_global_variable (p : pretty_printer) (m : module_) (variable_name : st
   pretty_printer_print p " ";
   pretty_printer_print p (c_representation v.variable_representation);
   pretty_printer_print p " ";
-  print_c_reference p variable_name dimensions;
+  print_c_reference p ~name:variable_name ~indices:dimensions;
   pretty_printer_println p ";"
 
 let print_global_variables (p : pretty_printer) (m : module_) : unit =

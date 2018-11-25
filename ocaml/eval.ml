@@ -22,7 +22,7 @@ let rec eval (s: specification) (f : fresh_name_generator) (e : expr) : Imperati
              begin match d.definition_expr_summation_subscripts with
              | [] -> eval s f summee
              | _ ->
-                let sum_variable_name = fresh_name_generator_generate_name f (variable_name ^ "_sum") in
+                let sum_variable_name = fresh_name_generator_generate_name f ~base_name:(variable_name ^ "_sum") in
                 let steps =
                   [Imperative.Step_let(sum_variable_name, v.variable_representation, v.variable_unit, Expr_const(0.0));
                    Imperative.Step_do(Imperative.nested_for

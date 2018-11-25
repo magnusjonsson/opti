@@ -136,7 +136,7 @@ let check_variables (u: dumb_user) (s: specification)
           in
           check_expr d.definition_expr_summee;
           v.variable_subscripts @ d.definition_expr_summation_subscripts |> Utils.nub_list |> List.iter
-            (fun (subscript, range_name) ->
+            (fun (subscript, _range_name) ->
               if not (Hashtbl.mem subscripts_used_in_references subscript) then
                 dumb_user_error u (Printf.sprintf "Subscript `%s' never used in definition of `%s'" subscript variable_name)))
 
@@ -150,11 +150,11 @@ let check_for_cyclic_definitions (u: dumb_user) (s: specification): unit
       | Definition_expr d ->
           let rec visit_expr = function
             | Expr_const _ -> ()
-            | Expr_ref(used_variable_name,subscripts) -> Hashtbl.add dependencies defined_variable_name used_variable_name
+            | Expr_ref(used_variable_name, _subscripts) -> Hashtbl.add dependencies defined_variable_name used_variable_name
             | Expr_unop(_, e1) -> visit_expr e1
             | Expr_binop(_, e1, e2) -> visit_expr e1; visit_expr e2
             | Expr_if(e1, e2, e3) -> visit_expr e1; visit_expr e2; visit_expr e3
-            | Expr_index_eq_ne(i1,i2,e1,e2) -> visit_expr e1; visit_expr e2
+            | Expr_index_eq_ne(_i1,_i2,e1,e2) -> visit_expr e1; visit_expr e2
           in
           visit_expr d.definition_expr_summee
       );
@@ -214,10 +214,10 @@ let check_that_goals_are_unique (u: dumb_user) (s: specification): unit =
                                       Hashtbl.replace goal_to_names goal
                                                       (name :: try Hashtbl.find goal_to_names goal
                                                                with Not_found -> []));
-  goal_to_names |> Hashtbl.iter (fun goal names ->
+  goal_to_names |> Hashtbl.iter (fun _goal names ->
                                  match names with
                                  | [] -> ()
-                                 | [name] -> ()
+                                 | [_name] -> ()
                                  | _ ->
                                     dumb_user_error u (Printf.sprintf "Procs %s have the same goal"
                                                                       (String.concat " and " names)))
@@ -283,7 +283,7 @@ let unit_check_expr (u: dumb_user) (s: specification) (toplevel_variable_name: s
     match e with
     | Expr_const 0.0 -> Checked_unit_zero
     | Expr_const _ -> Checked_unit_ok unit_one
-    | Expr_ref(variable_name, subscripts_) ->
+    | Expr_ref(variable_name, _subscripts) ->
         begin try
           Checked_unit_ok((specification_find_variable s variable_name).variable_unit |> unit_canonicalize)
         with 

@@ -1,5 +1,4 @@
 open Expr
-open Unit
 open Syntax_tree
 
 type delta = {
@@ -31,8 +30,7 @@ let compute_ref_delta (deltas: delta list) (variable_name: string) (variable_sub
   with
     Delta_not_found _ -> Expr_const 0.0
 
-
-let rec compute_expr_delta ~(deltas: delta list) (e : expr) =
+let compute_expr_delta ~(deltas: delta list) (e : expr) =
   let rec process (e: expr) =
     match e with
     | Expr_const _ -> Expr_const 0.0

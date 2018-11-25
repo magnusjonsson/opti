@@ -10,7 +10,7 @@ let make_pretty_printer ch =
     pretty_printer_tab_depth = 0; }
 
 let output_spaces ch n =
-  for i = 1 to n do
+  for _ = 1 to n do
     output_char ch ' '
   done
 

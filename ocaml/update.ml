@@ -28,7 +28,7 @@ let assume_subscripts_not_equal_in_expr (i1: string) (i2: string) (e: expr) : ex
   let rec transform e =
     match e with
     | Expr_const _ -> e
-    | Expr_ref(variable_name, subscripts) -> e
+    | Expr_ref(_variable_name, _subscripts) -> e
     | Expr_unop(u, e1) -> Expr_unop(u, transform e1)
     | Expr_binop(b, e1, e2) -> Expr_binop(b, transform e1, transform e2)
     | Expr_if(e1, e2, e3) -> Expr_if(transform e1, transform e2, transform e3)
@@ -62,7 +62,7 @@ let compute_update (s: specification) (g: fresh_name_generator) (deltas: delta l
   begin match propagatee.variable_definition with
   | Definition_given -> raise (Impossible "propagate delta to given")
   | Definition_expr d ->
-      let propagatee_delta_expr = simplify_expr (compute_expr_delta deltas d.definition_expr_summee) in
+      let propagatee_delta_expr = simplify_expr (compute_expr_delta ~deltas d.definition_expr_summee) in
       let loop_subscripts = propagatee.variable_subscripts @ d.definition_expr_summation_subscripts in
       let preferred_subst_direction = List.rev (List.map fst loop_subscripts) in
       let align_with_preferred_subst_direction (i1, i2) =
@@ -79,7 +79,7 @@ let compute_update (s: specification) (g: fresh_name_generator) (deltas: delta l
       in
       let rename_subscript = Utils.fix (Utils.subst_assoc equivalences) in
 
-      let should_keep_loop (i, range_name): bool
+      let should_keep_loop (i, _range_name): bool
           = not (List.mem_assoc i equivalences)
       in
 
@@ -92,7 +92,7 @@ let compute_update (s: specification) (g: fresh_name_generator) (deltas: delta l
       in
 
       let propagatee_delta_value_name =
-        fresh_name_generator_generate_name g (propagatee_variable_name ^"_delta")
+        fresh_name_generator_generate_name g ~base_name:(propagatee_variable_name ^"_delta")
       in
 
       let propagatee_modified_index =

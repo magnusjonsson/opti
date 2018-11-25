@@ -1,5 +1,4 @@
 open Syntax_tree
-open Opti
 open Pretty_printer
 
 let input_file = ref ""
@@ -17,9 +16,9 @@ let usage_error msg =
 
 let main () =
   Arg.parse args_spec (fun s -> raise (Arg.Bad s)) "opti_main -i <input.opti> -o <output.c>";
-  if !input_file == "" then usage_error "Missing -i argument";
-  if !output_file == "" then usage_error "Missing -o argument";
-  if !header_file == "" then usage_error "Missing -h argument";
+  if !input_file = "" then usage_error "Missing -i argument";
+  if !output_file = "" then usage_error "Missing -o argument";
+  if !header_file = "" then usage_error "Missing -h argument";
   let lexbuf = Lexing.from_channel (open_in !input_file) in
   let s: specification =
     try

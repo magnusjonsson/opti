@@ -60,4 +60,4 @@ let rec nested_for
   match subscripts with
   | [] -> body
   | (var_name, range_name) :: rest -> Statement_for(var_name, range_name,
-                                                    nested_for rest body)
+                                                    nested_for ~subscripts:rest ~body:body)
