@@ -25,6 +25,14 @@ type linkage =
   | Linkage_private
   | Linkage_phantom
 
+let linkage_to_string(l: linkage): string
+  =
+  match l with
+  | Linkage_extern -> "extern"
+  | Linkage_public -> "public"
+  | Linkage_private -> "private"
+  | Linkage_phantom -> "phantom"
+
 type definition =
   | Definition_given
   | Definition_expr of definition_expr

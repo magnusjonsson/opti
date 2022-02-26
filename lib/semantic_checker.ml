@@ -140,6 +140,36 @@ let check_variables (u: error_printer) (s: specification)
               if not (Hashtbl.mem subscripts_used_in_references subscript) then
                 error_printer_error u (Printf.sprintf "Subscript `%s' never used in definition of `%s'" subscript variable_name)))
 
+
+let check_phantom_invariant (u: error_printer) (s: specification): unit
+     =
+  let linkage = Hashtbl.of_seq (List.to_seq (List.map (fun (name, v) -> (name, v.variable_linkage)) s.specification_variables)) in
+  let phantom_mismatch (parent_name: string) (child_name: string): unit =
+    let parent_linkage = (Hashtbl.find linkage parent_name) in
+    let child_linkage = (Hashtbl.find linkage child_name) in
+      if (child_linkage == Linkage_phantom && (parent_linkage != child_linkage)) then
+        error_printer_error u (Printf.sprintf "`%s' marked `%s' while dependent variable `%s' is marked `%s': \n\
+                               Perhaps you forgot to mark `%s' as `%s'" parent_name (linkage_to_string parent_linkage) 
+                               child_name (linkage_to_string child_linkage) parent_name (linkage_to_string Linkage_phantom))
+      else
+        ()
+  in
+  s.specification_variables |> List.iter
+    (fun (defined_variable_name, v) ->
+      match v.variable_definition with
+      | Definition_given -> ()
+      | Definition_expr d ->
+          let rec visit_expr = function
+            | Expr_const _ -> ()
+            | Expr_ref(used_variable_name, _subscripts) -> phantom_mismatch defined_variable_name used_variable_name;
+            | Expr_unop(_, e1) -> visit_expr e1
+            | Expr_binop(_, e1, e2) -> visit_expr e1; visit_expr e2
+            | Expr_if(e1, e2, e3) -> visit_expr e1; visit_expr e2; visit_expr e3
+            | Expr_index_eq_ne(_i1,_i2,e1,e2) -> visit_expr e1; visit_expr e2
+          in
+          visit_expr d.definition_expr_summee
+      )
+
 let check_for_cyclic_definitions (u: error_printer) (s: specification): unit
     =
   let dependencies = Hashtbl.create 10 in
@@ -231,6 +261,7 @@ let check_specification (u: error_printer) (s: specification): unit
     =
   check_for_multiple_definitions u s;
   check_for_cyclic_definitions u s;
+  check_phantom_invariant u s;
   check_variables u s;
   check_goals u s
 
