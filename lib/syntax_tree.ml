@@ -45,7 +45,6 @@ type variable = {
   variable_definition: definition;
 }
 
-
 (* Computational goals *)
 
 type goal =
@@ -62,8 +61,8 @@ type specification = {
     specification_ranges: (string * range) list;
     specification_variables: (string * variable) list;
     specification_goals: (string * goal) list;
+    specification_observers : (string * string list) list;
   }
-
 
 exception Range_not_found of string
 exception Variable_not_found of string
@@ -95,6 +94,7 @@ let specification_add_range range_name range (s: specification)
   { specification_ranges = (range_name,range) :: s.specification_ranges;
     specification_variables = s.specification_variables;
     specification_goals = s.specification_goals;
+    specification_observers = s.specification_observers ;
   }
 
 let specification_add_variable variable_name variable (s: specification)
@@ -102,6 +102,15 @@ let specification_add_variable variable_name variable (s: specification)
   { specification_ranges = s.specification_ranges;
     specification_variables = (variable_name, variable) :: s.specification_variables;
     specification_goals = s.specification_goals;
+    specification_observers = s.specification_observers ;
+  }
+
+let specification_add_observer observer_name (observees: string list) (s: specification)
+    =
+  { specification_ranges = s.specification_ranges;
+    specification_variables = s.specification_variables;
+    specification_goals = s.specification_goals;
+    specification_observers = (observer_name,observees) :: s.specification_observers ;
   }
 
 let specification_add_goal goal_name goal (s: specification)
@@ -109,12 +118,16 @@ let specification_add_goal goal_name goal (s: specification)
   { specification_ranges = s.specification_ranges;
     specification_variables = s.specification_variables;
     specification_goals = (goal_name,goal) :: s.specification_goals;
+    specification_observers = s.specification_observers;
   }
 
 let empty_specification =
   { specification_ranges = [];
     specification_variables = [];
-    specification_goals = []; }
+    specification_goals = [];
+    specification_observers = [];
+  }
+
 
 
 

@@ -35,6 +35,7 @@ open Syntax_tree
 %token DELTA
 %token SETS
 %token INCREMENTS
+%token OBSERVES
 %token SCALES
 %token MIN
 %token MAX
@@ -129,6 +130,12 @@ goal:
 | SCALES UNIT ID            { Goal_scale_unit $3 }
 ;
 
+/* TODO: make this only singleton id or make sure all 
+* variable dimensions and units match */
+
+observe:
+| OBSERVES id_list { $2 }
+
 unit:
 | ONE             { [] }
 | ID              { [$1,1] }
@@ -161,7 +168,9 @@ specification:
                       variable_definition = $7 }
             in specification_add_variable $3 v $9
           }
+
 | PROC ID goal SEMICOLON specification                               { specification_add_goal $2 $3 $5 }
+| PROC ID observe SEMICOLON specification                            { specification_add_observer $2 $3 $5 }
 |                                                                    { empty_specification }
 ;
 

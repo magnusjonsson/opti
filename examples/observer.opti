@@ -1,0 +1,12 @@
+range frob cname NUM_FROBS;
+range grub cname NUM_GRUBS;
+
+private a[f frob] unit 1;
+private c[f frob] unit spy;
+public b unit 1 = sum(f frob) a[f];
+public d unit 1 = sum(f frob) a[f];
+
+proc handle_a observes a;
+proc handle_b observes b, d;
+
+proc handler increments a;

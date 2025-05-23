@@ -7,11 +7,17 @@ type linkage =
 type representation = Syntax_tree.representation
 type unit_ = Unit.unit_
 
+type observer = {
+  observer_name: string;
+  observees: string list;
+}
+
 type variable = {
   variable_linkage: linkage;
   variable_dimensions: string list;
   variable_representation: representation;
   variable_unit: unit_;
+  variable_observers: string list;
 }
 
 type lhs =
@@ -39,6 +45,7 @@ type module_ = {
   module_ranges : (string * range) list;
   module_variables : (string * variable) list;
   module_procedures : (string * procedure) list;
+  module_observers : (observer) list;
 }
 
 
