@@ -191,7 +191,6 @@ let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: 
       emit_code_to_propagate_deltas s g ~direct_dependents_table ~rank_table ~deltas;
   }
 
-
 let generate_procedure_to_increment_variables (s: specification) ~(variable_names: string list)
     =
   let g = make_fresh_name_generator() in
@@ -207,6 +206,7 @@ let generate_procedure_to_increment_variables (s: specification) ~(variable_name
       )
   in
   {
+
     Imperative.procedure_index_args =
       deltas |> List.map (fun d -> d.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
@@ -311,7 +311,12 @@ let generate_imperative_variables (s: specification) : (string * Imperative.vari
                Imperative.variable_linkage = linkage;
                Imperative.variable_dimensions = v.variable_subscripts |> List.map (fun (_name,range_name) -> range_name);
                Imperative.variable_representation = v.variable_representation;
-               Imperative.variable_unit = v.variable_unit;}])
+               Imperative.variable_unit = v.variable_unit;
+               Imperative.variable_observers = (s.specification_observers |> List.filter_map(fun (observer, observees) -> 
+                 if List.mem variable_name observees
+                 then Some observer
+                 else None));
+            }])
   |> List.concat
 
 
@@ -335,9 +340,14 @@ let generate_imperative_procedures (s: specification) : (string * Imperative.pro
     )
 
 
+let generate_observers (s: specification) : (Imperative.observer) list =
+  s.specification_observers |> List.map
+    (fun (observer_name, observees) -> { Imperative.observer_name = observer_name; Imperative.observees = observees })
+
 let generate_imperative_module (s : specification) : Imperative.module_ =
   {
     Imperative.module_ranges = s.specification_ranges;
     Imperative.module_variables = generate_imperative_variables s;
     Imperative.module_procedures = generate_imperative_procedures s;
+    Imperative.module_observers = generate_observers s;
   }

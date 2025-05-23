@@ -33,7 +33,8 @@ let check_for_multiple_definitions (u: error_printer) (s: specification)
     =
   s.specification_ranges    |> List.map fst |> check_that_names_are_unique u "range";
   s.specification_variables |> List.map fst |> check_that_names_are_unique u "variable";
-  s.specification_goals     |> List.map fst |> check_that_names_are_unique u "proc"
+  s.specification_goals     |> List.map fst |> check_that_names_are_unique u "proc";
+  s.specification_observers |> List.map fst |> check_that_names_are_unique u "observer"
 
 
 exception Subscript_not_found of string
@@ -257,12 +258,43 @@ let check_goals (u: error_printer) (s: specification): unit
   s.specification_goals |> List.iter (fun (goal_name, goal) -> check_goal u s goal_name goal);
   check_that_goals_are_unique u s
 
+let check_observer_consistent_dimensions (u: error_printer) (s: specification) (observer: string) (observees: string list): unit =
+  let variables = observees |> List.map (fun variable_name ->
+    variable_name, specification_find_variable s variable_name) in
+  match variables with
+  | [] -> error_printer_error u (Printf.sprintf "Unexpected empty variable list for observees %s" (String.concat ", " observees)); ()
+  | [_] -> ()
+  | (variable_name, variable) :: tl ->
+    List.iter (fun (tl_variable_name, tl_variable) ->
+      if (tl_variable.variable_subscripts <> variable.variable_subscripts) || (tl_variable.variable_unit <> variable.variable_unit) then
+        error_printer_error u (Printf.sprintf "Mismatched dimensions or units on observer: '%s' between: '%s' and '%s'" observer variable_name tl_variable_name)
+      else
+        ()
+    ) tl
+
+let check_observer (u: error_printer) (s: specification) (observer: string) (observees: string list): unit =
+  check_observer_consistent_dimensions u s observer observees;
+  observees |> List.iter (fun variable_name ->
+    check_that_names_are_unique u (Printf.sprintf "observer %s's observees:" observer) observees;
+    try
+      ignore (specification_find_variable s variable_name)
+    with
+    | Variable_not_found _ ->
+        error_printer_error u (Printf.sprintf "Undefined variable `%s' for observer `%s'" variable_name observer);
+  )
+
+let check_observers (u: error_printer) (s: specification): unit
+    =
+  s.specification_observers |> List.iter (fun (observer, observees) -> check_observer u s observer observees);
+  ()
+
 let check_specification (u: error_printer) (s: specification): unit
     =
   check_for_multiple_definitions u s;
   check_for_cyclic_definitions u s;
   check_phantom_invariant u s;
   check_variables u s;
+  check_observers u s;
   check_goals u s
 
 type checked_unit =

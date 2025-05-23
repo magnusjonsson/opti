@@ -34,13 +34,18 @@ let print_c_reference (p: pretty_printer) ~(name: string) ~(indices: string list
   pretty_printer_print p name;
   indices |> List.iter (fun dim -> pretty_printer_print p (Printf.sprintf "[%s]" dim))
 
-let print_c_function_declaration (p: pretty_printer) ~(function_name: string) ~(index_args: string list) ~(value_args: (string * representation * unit_) list) ~(return_value: (expr * representation * unit_) option): unit
+let print_c_function_declaration (p: pretty_printer) ~(linkage: linkage) ~(function_name: string) ~(index_args: string list) ~(value_args: (string * representation * unit_) list) ~(return_value: (expr * representation * unit_) option): unit
   =
+  let linkage = match linkage with
+         | Linkage_extern -> "extern"
+         | Linkage_public -> ""
+         | Linkage_private -> "static"
+  in
   let return_type : string = match return_value with
     | None -> "void"
     | Some(_expr, repr, unit_) -> c_unit unit_ ^ " " ^ c_representation repr
   in
-  pretty_printer_print p (Printf.sprintf "static %s %s(" return_type function_name);
+  pretty_printer_print p (Printf.sprintf "%s %s %s(" linkage return_type function_name);
   let sep = ref "" in
   index_args |> List.iter (fun index_arg ->
     pretty_printer_print p (Printf.sprintf "%sint %s" (!sep) index_arg);
@@ -185,6 +190,20 @@ let lhs_representation (m: module_) (lhs: lhs): representation =
   | Lhs_local(_variable_name, representation) ->
      representation
 
+(* Find all observers for this GLOBAL variable about to be assigned to,
+   make sure they are all called *)
+let print_observer_call (p: pretty_printer) (m: module_) (lhs: lhs): unit =
+  match lhs with
+     | Lhs_global(variable_name, _variable_subscripts) ->
+         let observers = match m.module_variables |> List.find_opt (fun (name, _) -> name = variable_name) with
+          | Some (_, var) -> var.variable_observers
+          | None -> [] in
+         let observer_names = observers in
+         observer_names |> List.iter (fun observer_name ->
+         pretty_printer_print p observer_name;
+         pretty_printer_println p (Printf.sprintf "(%s);" (String.concat "," (_variable_subscripts))))
+     | _ -> ()
+
 let rec print_step (p: pretty_printer) (m: module_) (step: step): unit =
   match step with
   | Step_let(variable_name, representation, unit_, expr) ->
@@ -203,12 +222,14 @@ and print_statement (p: pretty_printer) (m: module_) (statement: statement): uni
     print_lhs p lhs;
     pretty_printer_print p " = ";
     print_c_expr p C_precedence_parenthesized (lhs_representation m lhs) expr;
-    pretty_printer_println p ";"
+    pretty_printer_println p ";";
+    print_observer_call p m lhs;
   | Statement_increment(lhs, expr) ->
     print_lhs p lhs;
     pretty_printer_print p " += ";
     print_c_expr p C_precedence_parenthesized (lhs_representation m lhs) expr;
-    pretty_printer_println p ";"
+    pretty_printer_println p ";";
+    print_observer_call p m lhs;
   | Statement_scale(lhs, expr) ->
     print_lhs p lhs;
     pretty_printer_print p " *= ";
@@ -230,7 +251,7 @@ and print_statement (p: pretty_printer) (m: module_) (statement: statement): uni
 let print_procedures (p : pretty_printer) (m : module_) : unit =
   m.module_procedures |> List.iter
       (fun (procedure_name, proc) ->
-        print_c_function_declaration p ~function_name:procedure_name ~index_args:proc.procedure_index_args ~value_args:proc.procedure_value_args ~return_value:proc.procedure_return_value;
+        print_c_function_declaration p ~linkage:Linkage_public ~function_name:procedure_name ~index_args:proc.procedure_index_args ~value_args:proc.procedure_value_args ~return_value:proc.procedure_return_value;
         pretty_printer_open_block p " {";
         proc.procedure_index_args |> List.iter (fun index_arg -> pretty_printer_println p (Printf.sprintf "(void) %s;" index_arg));
         proc.procedure_value_args |> List.iter (fun (value_arg, _, _) -> pretty_printer_println p (Printf.sprintf "(void) %s;" value_arg));
@@ -285,5 +306,24 @@ let print_header_global_variables (p : pretty_printer) (m : module_) : unit =
        (fun (variable_name, v) ->
          print_global_variable p m variable_name v "extern ")
 
+(* For now we only support empty () observer calls. One can imagine adding index args one day *)
+let print_header_observers (p : pretty_printer) (m : module_) : unit =
+  m.module_observers
+  |> List.iter
+      (fun observer ->
+        match observer.observees with
+        | first_observee :: _ ->
+          let var = module_find_variable m first_observee in
+          print_c_function_declaration p
+            ~linkage:Linkage_extern
+            ~function_name:observer.observer_name
+            ~index_args:var.variable_dimensions
+            ~value_args:[]
+            ~return_value:None;
+          pretty_printer_println p ";"
+        | [] -> ()
+      )
+
 let print_module_header (p : pretty_printer) (m : module_) : unit =
-  print_header_global_variables p m
+  print_header_global_variables p m;
+  print_header_observers p m

@@ -23,6 +23,7 @@ rule token = parse
                                                    "delta", Parser.DELTA;
                                                    "sets", Parser.SETS;
                                                    "increments", Parser.INCREMENTS;	
+                                                   "observes", Parser.OBSERVES;	
 						   "scales", Parser.SCALES;
                                                    "min", Parser.MIN;
                                                    "max", Parser.MAX;
