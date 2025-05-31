@@ -139,33 +139,6 @@ exception Recompute_phantom of string
 exception Recompute_extern of string
 exception Recompute_given of string
 
-let generate_procedure_to_recompute (s: specification) (variable_name : string) : Imperative.procedure
-    =
-    let v = specification_find_variable s variable_name in
-    match v.variable_linkage with
-    | Linkage_phantom -> raise (Recompute_phantom(variable_name))
-    | Linkage_extern -> raise (Recompute_extern(variable_name))
-    | Linkage_public | Linkage_private ->  begin
-        match v.variable_definition with
-        | Definition_given -> raise (Recompute_given(variable_name))
-        | Definition_expr _ ->
-           let f = make_fresh_name_generator() in
-           let index_args : string list = v.variable_subscripts |> List.map fst in
-           (* While evaluating, pretend that the variable is a phantom variable *)
-           let v' = { v with variable_linkage = Linkage_phantom } in
-           let s' = specification_add_variable variable_name v' s in
-           let steps, result = eval s' f (Expr_ref(variable_name, index_args)) in
-           {
-             Imperative.procedure_index_args = index_args;
-             Imperative.procedure_value_args = [];
-             Imperative.procedure_return_value = None;
-             Imperative.procedure_body =
-               steps @
-                 [Imperative.Step_do(Imperative.Statement_assign(Imperative.Lhs_global(variable_name, index_args),
-                                                                 result))]
-           }
-      end
-
 let generate_procedure_to_propagate_deltas (s: specification) ~(variable_names: string list) : Imperative.procedure
     =
   let g = make_fresh_name_generator() in
@@ -224,7 +197,7 @@ type assignment = {
   assignment_value : string;
 }
 
-let generate_procedure_to_set_variables (s: specification) ~(variable_names: string list)
+let generate_procedure_to_set_variables (s: specification) (variable_names: string list) (steps: Imperative.step list) (result: expr option)
     =
   let g = make_fresh_name_generator() in
   let assignments: assignment list =
@@ -247,24 +220,48 @@ let generate_procedure_to_set_variables (s: specification) ~(variable_names: str
     Imperative.procedure_index_args =
       assignments |> List.map (fun a -> a.assignment_delta.delta_variable_subscripts) |> List.concat |> Utils.nub_list;
     Imperative.procedure_value_args =
-      assignments |> List.map (fun a -> (a.assignment_value, a.assignment_delta.delta_variable.variable_representation, a.assignment_delta.delta_variable.variable_unit));
+      (match result with
+      | Some(_) -> []
+      | None -> assignments |> List.map (fun a -> (a.assignment_value, a.assignment_delta.delta_variable.variable_representation, a.assignment_delta.delta_variable.variable_unit)));
     Imperative.procedure_return_value = None;
     Imperative.procedure_body =
-      let assign_and_compute_deltas =
+        let assign_and_compute_deltas =
         List.concat (assignments |> List.map
             (fun a ->
               let d = a.assignment_delta in
+              let assigned_expression = match result with
+                    | Some(r) -> r
+                    | None -> Expr_ref(a.assignment_value, []) in
               [Imperative.Step_let(d.delta_amount, d.delta_variable.variable_representation, d.delta_variable.variable_unit,
                                    Expr_binop(Binop_sub,
-                                              Expr_ref(a.assignment_value, []),
+                                              assigned_expression,
                                               Expr_ref(d.delta_variable_name, d.delta_variable_subscripts)));
                Imperative.Step_do(Imperative.Statement_assign(Imperative.Lhs_global(d.delta_variable_name, d.delta_variable_subscripts),
-                                                              Expr_ref(a.assignment_value, [])))]))
+                                                              assigned_expression))]))
       in
       let direct_dependents_table = compute_direct_dependents_table s in
       let rank_table = compute_rank_table direct_dependents_table in
-      assign_and_compute_deltas @ emit_code_to_propagate_deltas s g ~direct_dependents_table ~rank_table ~deltas;
+      steps @ assign_and_compute_deltas @ emit_code_to_propagate_deltas s g ~direct_dependents_table ~rank_table ~deltas;
   }
+
+let generate_procedure_to_recompute (s: specification) (variable_name : string) : Imperative.procedure
+    =
+    let v = specification_find_variable s variable_name in
+    match v.variable_linkage with
+    | Linkage_phantom -> raise (Recompute_phantom(variable_name))
+    | Linkage_extern -> raise (Recompute_extern(variable_name))
+    | Linkage_public | Linkage_private ->  begin
+        match v.variable_definition with
+        | Definition_given -> raise (Recompute_given(variable_name))
+        | Definition_expr _ ->
+           let f = make_fresh_name_generator() in
+           let index_args : string list = v.variable_subscripts |> List.map fst in
+           (* While evaluating, pretend that the variable is a phantom variable *)
+           let v' = { v with variable_linkage = Linkage_phantom } in
+           let s' = specification_add_variable variable_name v' s in
+           let steps, result = eval s' f (Expr_ref(variable_name, index_args)) in
+           generate_procedure_to_set_variables s [variable_name] steps (Some result)
+      end
 
 let generate_procedure_to_scale_unit (s: specification) (u: string) : Imperative.procedure =
   let f = make_fresh_name_generator() in
@@ -330,9 +327,9 @@ let generate_imperative_procedures (s: specification) : (string * Imperative.pro
       | Goal_recompute variable_name ->
          generate_procedure_to_recompute s variable_name
       | Goal_propagate_delta variable_names ->
-          generate_procedure_to_propagate_deltas s ~variable_names
+         generate_procedure_to_propagate_deltas s ~variable_names
       | Goal_set variable_names ->
-         generate_procedure_to_set_variables s ~variable_names
+         generate_procedure_to_set_variables s variable_names [] None
       | Goal_increment variable_names ->
          generate_procedure_to_increment_variables s ~variable_names
       | Goal_scale_unit unit_ ->
